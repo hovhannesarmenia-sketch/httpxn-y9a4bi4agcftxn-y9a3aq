@@ -3,7 +3,9 @@ import { LanguageProvider } from '@/contexts/LanguageContext';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { MobileNav } from '@/components/layout/MobileNav';
 import { CalendarView } from '@/components/calendar/CalendarView';
-import { Stethoscope } from 'lucide-react';
+import { PatientsView } from '@/components/patients/PatientsView';
+import { SettingsView } from '@/components/settings/SettingsView';
+import { DiagnosticsView } from '@/components/diagnostics/DiagnosticsView';
 
 function DashboardContent() {
   const [activeTab, setActiveTab] = useState('calendar');
@@ -22,27 +24,9 @@ function DashboardContent() {
       <main className="lg:ml-64 pt-16 pb-20 lg:pt-0 lg:pb-0 min-h-screen">
         <div className="p-4 lg:p-8">
           {activeTab === 'calendar' && <CalendarView />}
-          {activeTab === 'patients' && (
-            <div className="medical-card p-8 text-center">
-              <Stethoscope className="h-12 w-12 mx-auto text-primary mb-4" />
-              <h2 className="text-xl font-semibold mb-2">Пациенты</h2>
-              <p className="text-muted-foreground">Раздел в разработке</p>
-            </div>
-          )}
-          {activeTab === 'settings' && (
-            <div className="medical-card p-8 text-center">
-              <Stethoscope className="h-12 w-12 mx-auto text-primary mb-4" />
-              <h2 className="text-xl font-semibold mb-2">Настройки</h2>
-              <p className="text-muted-foreground">Раздел в разработке</p>
-            </div>
-          )}
-          {activeTab === 'diagnostics' && (
-            <div className="medical-card p-8 text-center">
-              <Stethoscope className="h-12 w-12 mx-auto text-primary mb-4" />
-              <h2 className="text-xl font-semibold mb-2">Диагностика</h2>
-              <p className="text-muted-foreground">Раздел в разработке</p>
-            </div>
-          )}
+          {activeTab === 'patients' && <PatientsView />}
+          {activeTab === 'settings' && <SettingsView />}
+          {activeTab === 'diagnostics' && <DiagnosticsView />}
         </div>
       </main>
     </div>
