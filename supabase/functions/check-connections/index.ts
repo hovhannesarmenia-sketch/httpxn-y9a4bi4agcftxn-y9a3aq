@@ -1,0 +1,85 @@
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const { doctorId } = await req.json();
+    console.log("Checking connections for doctor:", doctorId);
+
+    // Get doctor info
+    const { data: doctor } = await supabase
+      .from("doctor")
+      .select("*")
+      .eq("id", doctorId)
+      .maybeSingle();
+
+    if (!doctor) {
+      return new Response(JSON.stringify({ 
+        telegram: false, 
+        googleCalendar: false, 
+        googleSheets: false 
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    let telegramConnected = false;
+    let googleCalendarConnected = false;
+    let googleSheetsConnected = false;
+
+    // Check Telegram
+    if (doctor.telegram_bot_token) {
+      try {
+        const response = await fetch(
+          `https://api.telegram.org/bot${doctor.telegram_bot_token}/getMe`
+        );
+        const data = await response.json();
+        telegramConnected = data.ok === true;
+        console.log("Telegram check:", telegramConnected);
+      } catch (e) {
+        console.error("Telegram check error:", e);
+      }
+    }
+
+    // Check Google integrations
+    const serviceAccountKeyJson = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_KEY");
+    
+    if (serviceAccountKeyJson && doctor.google_calendar_id) {
+      // For now, just check if the config exists
+      googleCalendarConnected = true;
+    }
+
+    if (serviceAccountKeyJson && doctor.google_sheet_id) {
+      googleSheetsConnected = true;
+    }
+
+    return new Response(
+      JSON.stringify({
+        telegram: telegramConnected,
+        googleCalendar: googleCalendarConnected,
+        googleSheets: googleSheetsConnected,
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  } catch (error: unknown) {
+    console.error("Connection check error:", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    return new Response(JSON.stringify({ error: errorMessage }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+});

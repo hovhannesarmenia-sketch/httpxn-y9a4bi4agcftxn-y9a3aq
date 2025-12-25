@@ -1,1 +1,19 @@
 project_id = "ibaidrkbbpoixnbzpppi"
+
+[functions.telegram-webhook]
+verify_jwt = false
+
+[functions.send-reminders]
+verify_jwt = false
+
+[functions.check-connections]
+verify_jwt = false
+
+[functions.send-test-message]
+verify_jwt = false
+
+[functions.sync-google-calendar]
+verify_jwt = false
+
+[functions.sync-google-sheets]
+verify_jwt = false
