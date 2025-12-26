@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { t, formatDate, formatTime } from '@/lib/i18n';
@@ -9,7 +10,7 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Search, Users, Phone, Globe, Calendar as CalendarIcon } from 'lucide-react';
+import { Search, Users, Phone, Globe, Calendar as CalendarIcon, ExternalLink } from 'lucide-react';
 import type { Database } from '@/integrations/supabase/types';
 
 type Patient = Database['public']['Tables']['patients']['Row'];
@@ -20,6 +21,7 @@ type Appointment = Database['public']['Tables']['appointments']['Row'] & {
 
 export function PatientsView() {
   const { language } = useLanguage();
+  const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState<string>('');
@@ -207,7 +209,11 @@ export function PatientsView() {
                     const startDate = new Date(apt.start_date_time);
                     
                     return (
-                      <TableRow key={apt.id} className="hover:bg-muted/30">
+                      <TableRow 
+                        key={apt.id} 
+                        className="hover:bg-muted/30 cursor-pointer"
+                        onClick={() => patient && navigate(`/patient/${patient.id}`)}
+                      >
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
@@ -216,8 +222,9 @@ export function PatientsView() {
                               </span>
                             </div>
                             <div>
-                              <p className="font-medium">
+                              <p className="font-medium flex items-center gap-1">
                                 {patient?.first_name} {patient?.last_name || ''}
+                                <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100" />
                               </p>
                               <div className="flex items-center gap-1 md:hidden">
                                 <Phone className="h-3 w-3 text-muted-foreground" />
