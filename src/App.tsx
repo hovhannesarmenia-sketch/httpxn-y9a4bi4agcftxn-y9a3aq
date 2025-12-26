@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { LanguageProvider } from "@/contexts/LanguageContext";
+// App with LanguageProvider wrapping all routes
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import PatientProfile from "./pages/PatientProfile";
