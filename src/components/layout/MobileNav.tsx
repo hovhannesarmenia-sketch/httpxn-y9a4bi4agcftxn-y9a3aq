@@ -1,4 +1,4 @@
-import { Calendar, Users, Settings, Activity, Menu, X } from 'lucide-react';
+import { Calendar, Users, Settings, Activity, Menu, X, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useState } from 'react';
@@ -6,9 +6,10 @@ import { useState } from 'react';
 interface MobileNavProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
+  onLogout: () => void;
 }
 
-export function MobileNav({ activeTab, onTabChange }: MobileNavProps) {
+export function MobileNav({ activeTab, onTabChange, onLogout }: MobileNavProps) {
   const { t, language, setLanguage } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
 
@@ -60,8 +61,8 @@ export function MobileNav({ activeTab, onTabChange }: MobileNavProps) {
               ))}
             </nav>
 
-            {/* Language Switcher */}
-            <div className="absolute bottom-0 left-0 right-0 border-t border-border p-4">
+            {/* Language Switcher & Logout */}
+            <div className="absolute bottom-0 left-0 right-0 border-t border-border p-4 space-y-3">
               <div className="flex gap-2">
                 <button
                   onClick={() => setLanguage('ARM')}
@@ -86,6 +87,17 @@ export function MobileNav({ activeTab, onTabChange }: MobileNavProps) {
                   Русский
                 </button>
               </div>
+              
+              <button
+                onClick={() => {
+                  onLogout();
+                  setIsOpen(false);
+                }}
+                className="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-all"
+              >
+                <LogOut className="h-5 w-5" />
+                <span className="font-medium">{language === 'ARM' ? 'Delays' : 'Выход'}</span>
+              </button>
             </div>
           </div>
         </div>
