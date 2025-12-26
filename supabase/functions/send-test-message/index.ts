@@ -41,18 +41,43 @@ serve(async (req) => {
     // Remove "bot" prefix if user accidentally included it
     const botToken = doctor.telegram_bot_token.replace(/^bot/i, '');
 
-    const response = await fetch(
-      `https://api.telegram.org/bot${botToken}/sendMessage`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: doctor.telegram_chat_id,
-          text: testMessage,
-          parse_mode: "HTML",
+    let response: Response;
+
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+
+      response = await fetch(
+        `https://api.telegram.org/bot${botToken}/sendMessage`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: doctor.telegram_chat_id,
+            text: testMessage,
+            parse_mode: "HTML",
+          }),
+          signal: controller.signal,
+        }
+      );
+
+      clearTimeout(timeout);
+    } catch (e) {
+      console.error("Telegram sendMessage network error:", e);
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      return new Response(
+        JSON.stringify({
+          error:
+            "Telegram API unreachable (timeout or network block). " +
+            "Please retry in a minute; if it persists, outbound access to api.telegram.org is failing from the backend.",
+          details: errorMessage,
         }),
-      }
-    );
+        {
+          status: 504,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
 
     const data = await response.json();
     console.log("Test message result:", data);
