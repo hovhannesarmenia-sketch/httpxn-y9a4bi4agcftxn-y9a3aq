@@ -259,6 +259,63 @@ export type Database = {
           },
         ]
       }
+      telegram_sessions: {
+        Row: {
+          created_at: string
+          custom_reason: string | null
+          duration_minutes: number | null
+          language: Database["public"]["Enums"]["interface_language"] | null
+          patient_id: string | null
+          selected_date: string | null
+          selected_time: string | null
+          service_id: string | null
+          step: string
+          telegram_user_id: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          custom_reason?: string | null
+          duration_minutes?: number | null
+          language?: Database["public"]["Enums"]["interface_language"] | null
+          patient_id?: string | null
+          selected_date?: string | null
+          selected_time?: string | null
+          service_id?: string | null
+          step?: string
+          telegram_user_id: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          custom_reason?: string | null
+          duration_minutes?: number | null
+          language?: Database["public"]["Enums"]["interface_language"] | null
+          patient_id?: string | null
+          selected_date?: string | null
+          selected_time?: string | null
+          service_id?: string | null
+          step?: string
+          telegram_user_id?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "telegram_sessions_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "telegram_sessions_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
