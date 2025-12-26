@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LanguageProvider } from '@/contexts/LanguageContext';
 import { useAuth } from '@/hooks/useAuth';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { MobileNav } from '@/components/layout/MobileNav';
@@ -63,11 +62,7 @@ const Index = () => {
     return null;
   }
 
-  return (
-    <LanguageProvider>
-      <DashboardContent />
-    </LanguageProvider>
-  );
+  return <DashboardContent />;
 };
 
 export default Index;
