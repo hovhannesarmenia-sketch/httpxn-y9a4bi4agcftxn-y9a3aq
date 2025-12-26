@@ -9,13 +9,13 @@ export type Language = 'ARM' | 'RU';
 export const botTranslations = {
   ARM: {
     // Welcome and language selection
-    welcome: 'Barev dzez, sa MedBook botn e. Khndrum enq yntrel lezuy.',
-    languageButton: '🇦🇲 Hayeren',
+    welcome: 'Բdelays dzez, sa MedBook botn e. Khndrum enq yntrel lezuн.',
+    languageButton: '🇦🇲 Հdelays',
 
     // Patient registration
     enterName: 'Khndrum enq grel dzez anuny ev azganuny.',
     sharePhone: 'Khndrum enq kisvatsnel dzez herakhosy.',
-    sharePhoneButton: '📱 Kisvatsnel herakhosy',
+    sharePhoneButton: '📱 Kdelays herakhosy',
     skipPhone: 'Bats toel',
 
     // Service selection
@@ -30,11 +30,11 @@ export const botTranslations = {
 
     // Booking confirmation
     confirmBooking: 'Hastatieq granchomy.',
-    service: 'Tsarrayutyun',
-    dateTime: 'Amsativ ev zham',
-    yes: '✅ Hastatiel',
-    no: '❌ Chegharkel',
-    back: '◀️ Het',
+    service: 'Ծdelays',
+    dateTime: ' Delays ev zham',
+    yes: '✅ Հdelays',
+    no: '❌ Չdelays',
+    back: '◀️ Հet',
 
     // After booking
     bookingConfirmed: '✅ Dzez granchomy stacvel e. Bzhishky piti hastati ayn.',
