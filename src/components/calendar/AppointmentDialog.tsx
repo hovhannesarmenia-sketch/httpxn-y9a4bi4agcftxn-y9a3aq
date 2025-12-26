@@ -225,7 +225,7 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
     if (!editDate || !editTime) {
       toast({
         title: t('common.error'),
-        description: language === 'ARM' ? 'Yntreq amsativ u zham' : 'Выберите дату и время',
+        description: language === 'ARM' ? '\u0538\u0576\u057F\u0580\u0565\u0584 \u0561\u0574\u057D\u0561\u0569\u056B\u057E\u0568 \u0587 \u056A\u0561\u0574\u0568' : 'Выберите дату и время',
         variant: 'destructive',
       });
       return;
@@ -251,7 +251,7 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
       if (error.message.includes('overlap')) {
         toast({
           title: t('common.error'),
-          description: language === 'ARM' ? 'Zhamy zbaghrtvats e' : 'Время занято другой записью',
+          description: language === 'ARM' ? '\u053A\u0561\u0574\u0568 \u0566\u0562\u0561\u0572\u057E\u0561\u056E \u0567' : 'Время занято другой записью',
           variant: 'destructive',
         });
       } else {
@@ -264,7 +264,7 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
     } else {
       toast({
         title: t('common.success'),
-        description: language === 'ARM' ? 'Granchumy tarmacvats e' : 'Запись обновлена',
+        description: language === 'ARM' ? '\u0533\u0580\u0561\u0576\u0581\u0578\u0582\u0574\u0568 \u0569\u0561\u0580\u0574\u0561\u0581\u057E\u0565\u056C \u0567' : 'Запись обновлена',
       });
       setIsEditMode(false);
       onUpdate();
