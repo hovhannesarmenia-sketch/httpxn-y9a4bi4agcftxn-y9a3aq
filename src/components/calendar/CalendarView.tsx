@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Clock, User } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, User, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, isToday } from 'date-fns';
 import { ru, hy } from 'date-fns/locale';
 import { AppointmentDialog } from './AppointmentDialog';
+import { ManualBookingDialog } from './ManualBookingDialog';
 
 type Appointment = {
   id: string;
@@ -34,6 +35,7 @@ export function CalendarView() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [bookingDialogOpen, setBookingDialogOpen] = useState(false);
 
   const locale = language === 'ARM' ? hy : ru;
 
@@ -214,12 +216,24 @@ export function CalendarView() {
       {/* Day Appointments */}
       <Card className="medical-card">
         <CardHeader className="pb-2">
-          <CardTitle className="text-lg font-semibold">
-            {selectedDate ? format(selectedDate, 'd MMMM', { locale }) : t('calendar.title')}
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            {dayAppointments.length} {t('calendar.appointments')}
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg font-semibold">
+                {selectedDate ? format(selectedDate, 'd MMMM', { locale }) : t('calendar.title')}
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                {dayAppointments.length} {t('calendar.appointments')}
+              </p>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => setBookingDialogOpen(true)}
+              className="gap-1"
+            >
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">{language === 'ARM' ? 'Նdelays' : 'Новая'}</span>
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-3 max-h-[500px] overflow-y-auto scrollbar-thin">
           {dayAppointments.length === 0 ? (
@@ -271,6 +285,14 @@ export function CalendarView() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         onUpdate={fetchAppointments}
+      />
+
+      {/* Manual Booking Dialog */}
+      <ManualBookingDialog
+        open={bookingDialogOpen}
+        onOpenChange={setBookingDialogOpen}
+        selectedDate={selectedDate}
+        onSuccess={fetchAppointments}
       />
     </div>
   );
