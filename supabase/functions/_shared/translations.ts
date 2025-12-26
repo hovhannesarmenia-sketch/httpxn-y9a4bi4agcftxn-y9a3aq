@@ -9,98 +9,98 @@ export type Language = 'ARM' | 'RU';
 export const botTranslations = {
   ARM: {
     // Welcome and language selection
-    welcome: 'Բdelays dzez, sa MedBook botn e. Khndrum enq yntrel lezuн.',
-    languageButton: '🇦🇲 Հdelays',
+    welcome: '\u0532\u0561\u0580\u0587 \u0571\u0565\u0566, \u057D\u0561 MedBook \u0562\u0578\u057F\u0576 \u0567\u0589 \u053D\u0576\u0564\u0580\u0578\u0582\u0574 \u0565\u0576\u0584 \u0568\u0576\u057F\u0580\u0565\u056C \u056C\u0565\u0566\u0578\u0582\u0576\u0589',
+    languageButton: '\uD83C\uDDE6\uD83C\uDDF2 \u0540\u0561\u0575\u0565\u0580\u0565\u0576',
 
     // Patient registration
-    enterName: 'Khndrum enq grel dzez anuny ev azganuny.',
-    sharePhone: 'Khndrum enq kisvatsnel dzez herakhosy.',
-    sharePhoneButton: '📱 Kdelays herakhosy',
-    skipPhone: 'Bats toel',
+    enterName: '\u053D\u0576\u0564\u0580\u0578\u0582\u0574 \u0565\u0576\u0584 \u0563\u0580\u0565\u056C \u0571\u0565\u0580 \u0561\u0576\u0578\u0582\u0576\u0568 \u0587 \u0561\u0566\u0563\u0561\u0576\u0578\u0582\u0576\u0568\u0589',
+    sharePhone: '\u053D\u0576\u0564\u0580\u0578\u0582\u0574 \u0565\u0576\u0584 \u056F\u056B\u057D\u057E\u0565\u056C \u0571\u0565\u0580 \u0570\u0565\u057C\u0561\u056D\u0578\u057D\u0561\u0570\u0561\u0574\u0561\u0580\u0578\u057E\u0589',
+    sharePhoneButton: '\uD83D\uDCF1 \u053F\u056B\u057D\u057E\u0565\u056C \u0570\u0565\u057C\u0561\u056D\u0578\u057D\u0561\u0570\u0561\u0574\u0561\u0580\u0578\u057E',
+    skipPhone: '\u0532\u0561\u0581 \u0569\u0578\u0572\u0576\u0565\u056C',
 
     // Service selection
-    chooseService: 'Yntreq tsarrayutyuny.',
-    otherService: '🔹 Ayl',
-    enterCustomReason: 'Nkaragreq dzez aytselman patchary.',
+    chooseService: '\u0538\u0576\u057F\u0580\u0565\u0584 \u056E\u0561\u057C\u0561\u0575\u0578\u0582\u0569\u0575\u0578\u0582\u0576\u0568\u0589',
+    otherService: '\uD83D\uDD39 \u0531\u0575\u056C',
+    enterCustomReason: '\u0546\u056F\u0561\u0580\u0561\u0563\u0580\u0565\u0584 \u0571\u0565\u0580 \u0561\u0575\u0581\u0565\u056C\u0578\u0582\u0569\u0575\u0561\u0576 \u057A\u0561\u057F\u0573\u0561\u057C\u0568\u0589',
 
     // Date and time selection
-    chooseDate: 'Yntreq amsativy.',
-    chooseTime: 'Yntreq zhamy.',
-    noSlots: 'Ayd ory azat zhamer chkan. Khndrum enq yntreq mek ayl or.',
+    chooseDate: '\u0538\u0576\u057F\u0580\u0565\u0584 \u0561\u0574\u057D\u0561\u0569\u056B\u057E\u0568\u0589',
+    chooseTime: '\u0538\u0576\u057F\u0580\u0565\u0584 \u056A\u0561\u0574\u0568\u0589',
+    noSlots: '\u0531\u0575\u0564 \u0585\u0580\u0568 \u0561\u0566\u0561\u057F \u056A\u0561\u0574\u0565\u0580 \u0579\u056F\u0561\u0576\u0589 \u053D\u0576\u0564\u0580\u0578\u0582\u0574 \u0565\u0576\u0584 \u0568\u0576\u057F\u0580\u0565\u0584 \u0574\u0565\u056F \u0561\u0575\u056C \u0585\u0580\u0589',
 
     // Booking confirmation
-    confirmBooking: 'Hastatieq granchomy.',
-    service: 'Ծdelays',
-    dateTime: ' Delays ev zham',
-    yes: '✅ Հdelays',
-    no: '❌ Չdelays',
-    back: '◀️ Հet',
+    confirmBooking: '\u0540\u0561\u057D\u057F\u0561\u057F\u0565\u055E\u056C \u0563\u0580\u0561\u0576\u0581\u0578\u0582\u0574\u0568\u0589',
+    service: '\u053E\u0561\u057C\u0561\u0575\u0578\u0582\u0569\u0575\u0578\u0582\u0576',
+    dateTime: '\u0531\u0574\u057D\u0561\u0569\u056B\u057E \u0587 \u056A\u0561\u0574',
+    yes: '\u2705 \u0540\u0561\u057D\u057F\u0561\u057F\u0565\u056C',
+    no: '\u274C \u0549\u0565\u0572\u0561\u0580\u056F\u0565\u056C',
+    back: '\u25C0\uFE0F \u0540\u0565\u057F',
 
     // After booking
-    bookingConfirmed: '✅ Dzez granchomy stacvel e. Bzhishky piti hastati ayn.',
-    waitConfirmation: 'Spasum enq bzhishki hastatmany...',
+    bookingConfirmed: '\u2705 \u0541\u0565\u0580 \u0563\u0580\u0561\u0576\u0581\u0578\u0582\u0574\u0568 \u057D\u057F\u0561\u0581\u057E\u0565\u056C \u0567\u0589 \u0532\u056A\u056B\u0577\u056F\u0568 \u057A\u0565\u057F\u0584 \u0567 \u0570\u0561\u057D\u057F\u0561\u057F\u056B \u0561\u0575\u0576\u0589',
+    waitConfirmation: '\u054D\u057A\u0561\u057D\u0578\u0582\u0574 \u0565\u0576\u0584 \u0562\u056A\u056B\u0577\u056F\u056B \u0570\u0561\u057D\u057F\u0561\u057F\u0574\u0561\u0576\u0568...',
 
     // Appointment status notifications
-    appointmentConfirmed: '✅ Dzez granchomy hastatvats e.\n\n👨‍⚕️ Bzhishk. Doktor {doctorName}\n📅 {dateTime}',
-    appointmentRejected: '❌ Dzez granchomy merjvats e.\n\nPatchar. {reason}',
+    appointmentConfirmed: '\u2705 \u0541\u0565\u0580 \u0563\u0580\u0561\u0576\u0581\u0578\u0582\u0574\u0568 \u0570\u0561\u057D\u057F\u0561\u057F\u057E\u0565\u056C \u0567\u0589\n\n\uD83D\uDC68\u200D\u2695\uFE0F \u0532\u056A\u056B\u0577\u056F\u0589 \u0534\u0578\u056F\u057F\u0578\u0580 {doctorName}\n\uD83D\uDCC5 {dateTime}',
+    appointmentRejected: '\u274C \u0541\u0565\u0580 \u0563\u0580\u0561\u0576\u0581\u0578\u0582\u0574\u0568 \u0574\u0565\u0580\u056A\u057E\u0565\u056C \u0567\u0589\n\n\u054A\u0561\u057F\u0573\u0561\u057C\u0589 {reason}',
     
     // Cancellation messages
-    cancelledByDoctor: '❌ Dzez granchomy chegharkvats e bzhishki koghmits.',
-    reason: 'Patchar.',
-    rebookMessage: 'Khndrum enq grancvel nor zhami hamar.',
+    cancelledByDoctor: '\u274C \u0541\u0565\u0580 \u0563\u0580\u0561\u0576\u0581\u0578\u0582\u0574\u0568 \u0579\u0565\u0572\u0561\u0580\u056F\u057E\u0565\u056C \u0567 \u0562\u056A\u056B\u0577\u056F\u056B \u056F\u0578\u0572\u0574\u056B\u0581\u0589',
+    reason: '\u054A\u0561\u057F\u0573\u0561\u057C\u0589',
+    rebookMessage: '\u053D\u0576\u0564\u0580\u0578\u0582\u0574 \u0565\u0576\u0584 \u0563\u0580\u0561\u0576\u0581\u057E\u0565\u056C \u0576\u0578\u0580 \u056A\u0561\u0574\u056B \u0570\u0561\u0574\u0561\u0580\u0589',
 
     // Doctor notifications
-    newDoctor: '👨‍⚕️ Nor granchman harcum.\n\nHivand. {patientName}\nTsarrayutyun. {service}\nAmsativ. {dateTime}\n\nYntreq gortsoghutyuny.',
-    confirm: '✅ Hastatiel',
-    reject: '❌ Merjel',
+    newDoctor: '\uD83D\uDC68\u200D\u2695\uFE0F \u0546\u0578\u0580 \u0563\u0580\u0561\u0576\u0581\u0574\u0561\u0576 \u0570\u0561\u0580\u0581\u0578\u0582\u0574\u0589\n\n\u0540\u056B\u057E\u0561\u0576\u0564\u0589 {patientName}\n\u053E\u0561\u057C\u0561\u0575\u0578\u0582\u0569\u0575\u0578\u0582\u0576\u0589 {service}\n\u0531\u0574\u057D\u0561\u0569\u056B\u057E\u0589 {dateTime}\n\n\u0538\u0576\u057F\u0580\u0565\u0584 \u0563\u0578\u0580\u056E\u0578\u0572\u0578\u0582\u0569\u0575\u0578\u0582\u0576\u0568\u0589',
+    confirm: '\u2705 \u0540\u0561\u057D\u057F\u0561\u057F\u0565\u056C',
+    reject: '\u274C \u0544\u0565\u0580\u056A\u0565\u056C',
   },
 
   RU: {
     // Welcome and language selection
-    welcome: 'Добро пожаловать в MedBook! Выберите язык:',
-    languageButton: 'Русский',
+    welcome: '\u0414\u043E\u0431\u0440\u043E \u043F\u043E\u0436\u0430\u043B\u043E\u0432\u0430\u0442\u044C \u0432 MedBook! \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u044F\u0437\u044B\u043A:',
+    languageButton: '\u0420\u0443\u0441\u0441\u043A\u0438\u0439',
 
     // Patient registration
-    enterName: 'Пожалуйста, введите ваше имя (Имя Фамилия):',
-    sharePhone: 'Пожалуйста, поделитесь вашим номером телефона:',
-    sharePhoneButton: '📱 Поделиться номером',
-    skipPhone: 'Пропустить',
+    enterName: '\u041F\u043E\u0436\u0430\u043B\u0443\u0439\u0441\u0442\u0430, \u0432\u0432\u0435\u0434\u0438\u0442\u0435 \u0432\u0430\u0448\u0435 \u0438\u043C\u044F (\u0418\u043C\u044F \u0424\u0430\u043C\u0438\u043B\u0438\u044F):',
+    sharePhone: '\u041F\u043E\u0436\u0430\u043B\u0443\u0439\u0441\u0442\u0430, \u043F\u043E\u0434\u0435\u043B\u0438\u0442\u0435\u0441\u044C \u0432\u0430\u0448\u0438\u043C \u043D\u043E\u043C\u0435\u0440\u043E\u043C \u0442\u0435\u043B\u0435\u0444\u043E\u043D\u0430:',
+    sharePhoneButton: '\uD83D\uDCF1 \u041F\u043E\u0434\u0435\u043B\u0438\u0442\u044C\u0441\u044F \u043D\u043E\u043C\u0435\u0440\u043E\u043C',
+    skipPhone: '\u041F\u0440\u043E\u043F\u0443\u0441\u0442\u0438\u0442\u044C',
 
     // Service selection
-    chooseService: 'Выберите услугу:',
-    otherService: '🔹 Другое',
-    enterCustomReason: 'Опишите причину вашего визита:',
+    chooseService: '\u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0443\u0441\u043B\u0443\u0433\u0443:',
+    otherService: '\uD83D\uDD39 \u0414\u0440\u0443\u0433\u043E\u0435',
+    enterCustomReason: '\u041E\u043F\u0438\u0448\u0438\u0442\u0435 \u043F\u0440\u0438\u0447\u0438\u043D\u0443 \u0432\u0430\u0448\u0435\u0433\u043E \u0432\u0438\u0437\u0438\u0442\u0430:',
 
     // Date and time selection
-    chooseDate: 'Выберите дату:',
-    chooseTime: 'Выберите время:',
-    noSlots: 'На этот день нет свободных слотов. Выберите другую дату.',
+    chooseDate: '\u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0434\u0430\u0442\u0443:',
+    chooseTime: '\u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0432\u0440\u0435\u043C\u044F:',
+    noSlots: '\u041D\u0430 \u044D\u0442\u043E\u0442 \u0434\u0435\u043D\u044C \u043D\u0435\u0442 \u0441\u0432\u043E\u0431\u043E\u0434\u043D\u044B\u0445 \u0441\u043B\u043E\u0442\u043E\u0432. \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0434\u0440\u0443\u0433\u0443\u044E \u0434\u0430\u0442\u0443.',
 
     // Booking confirmation
-    confirmBooking: 'Подтвердить запись?',
-    service: 'Услуга',
-    dateTime: 'Дата и время',
-    yes: '✅ Подтвердить',
-    no: '❌ Отмена',
-    back: '◀️ Назад',
+    confirmBooking: '\u041F\u043E\u0434\u0442\u0432\u0435\u0440\u0434\u0438\u0442\u044C \u0437\u0430\u043F\u0438\u0441\u044C?',
+    service: '\u0423\u0441\u043B\u0443\u0433\u0430',
+    dateTime: '\u0414\u0430\u0442\u0430 \u0438 \u0432\u0440\u0435\u043C\u044F',
+    yes: '\u2705 \u041F\u043E\u0434\u0442\u0432\u0435\u0440\u0434\u0438\u0442\u044C',
+    no: '\u274C \u041E\u0442\u043C\u0435\u043D\u0430',
+    back: '\u25C0\uFE0F \u041D\u0430\u0437\u0430\u0434',
 
     // After booking
-    bookingConfirmed: '✅ Ваша заявка отправлена! Врач должен подтвердить её.',
-    waitConfirmation: 'Ожидаем подтверждения врача...',
+    bookingConfirmed: '\u2705 \u0412\u0430\u0448\u0430 \u0437\u0430\u044F\u0432\u043A\u0430 \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430! \u0412\u0440\u0430\u0447 \u0434\u043E\u043B\u0436\u0435\u043D \u043F\u043E\u0434\u0442\u0432\u0435\u0440\u0434\u0438\u0442\u044C \u0435\u0451.',
+    waitConfirmation: '\u041E\u0436\u0438\u0434\u0430\u0435\u043C \u043F\u043E\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0435\u043D\u0438\u044F \u0432\u0440\u0430\u0447\u0430...',
 
     // Appointment status notifications
-    appointmentConfirmed: '✅ Ваша запись подтверждена!\n\n👨‍⚕️ Врач: Др. {doctorName}\n📅 {dateTime}',
-    appointmentRejected: '❌ Ваша запись отклонена.\n\nПричина: {reason}',
+    appointmentConfirmed: '\u2705 \u0412\u0430\u0448\u0430 \u0437\u0430\u043F\u0438\u0441\u044C \u043F\u043E\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0435\u043D\u0430!\n\n\uD83D\uDC68\u200D\u2695\uFE0F \u0412\u0440\u0430\u0447: \u0414\u0440. {doctorName}\n\uD83D\uDCC5 {dateTime}',
+    appointmentRejected: '\u274C \u0412\u0430\u0448\u0430 \u0437\u0430\u043F\u0438\u0441\u044C \u043E\u0442\u043A\u043B\u043E\u043D\u0435\u043D\u0430.\n\n\u041F\u0440\u0438\u0447\u0438\u043D\u0430: {reason}',
     
     // Cancellation messages
-    cancelledByDoctor: '❌ Ваш приём был отменён врачом.',
-    reason: 'Причина',
-    rebookMessage: 'Пожалуйста, запишитесь на другое время.',
+    cancelledByDoctor: '\u274C \u0412\u0430\u0448 \u043F\u0440\u0438\u0451\u043C \u0431\u044B\u043B \u043E\u0442\u043C\u0435\u043D\u0451\u043D \u0432\u0440\u0430\u0447\u043E\u043C.',
+    reason: '\u041F\u0440\u0438\u0447\u0438\u043D\u0430',
+    rebookMessage: '\u041F\u043E\u0436\u0430\u043B\u0443\u0439\u0441\u0442\u0430, \u0437\u0430\u043F\u0438\u0448\u0438\u0442\u0435\u0441\u044C \u043D\u0430 \u0434\u0440\u0443\u0433\u043E\u0435 \u0432\u0440\u0435\u043C\u044F.',
 
     // Doctor notifications
-    newDoctor: '👨‍⚕️ Новая запись:\n\nПациент: {patientName}\nУслуга: {service}\nДата: {dateTime}\n\nВыберите действие:',
-    confirm: '✅ Подтвердить',
-    reject: '❌ Отклонить',
+    newDoctor: '\uD83D\uDC68\u200D\u2695\uFE0F \u041D\u043E\u0432\u0430\u044F \u0437\u0430\u043F\u0438\u0441\u044C:\n\n\u041F\u0430\u0446\u0438\u0435\u043D\u0442: {patientName}\n\u0423\u0441\u043B\u0443\u0433\u0430: {service}\n\u0414\u0430\u0442\u0430: {dateTime}\n\n\u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0435:',
+    confirm: '\u2705 \u041F\u043E\u0434\u0442\u0432\u0435\u0440\u0434\u0438\u0442\u044C',
+    reject: '\u274C \u041E\u0442\u043A\u043B\u043E\u043D\u0438\u0442\u044C',
   },
 };
 
