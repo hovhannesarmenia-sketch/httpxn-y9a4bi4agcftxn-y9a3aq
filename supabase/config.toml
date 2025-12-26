@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.sync-google-sheets]
 verify_jwt = false
+
+[functions.notify-patient-cancellation]
+verify_jwt = false

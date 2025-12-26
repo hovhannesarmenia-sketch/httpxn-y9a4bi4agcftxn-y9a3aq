@@ -194,14 +194,29 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
         description: error.message,
         variant: 'destructive',
       });
-    } else {
-      toast({
-        title: t('common.success'),
-        description: t('appointment.cancelled'),
-      });
-      onUpdate();
-      onOpenChange(false);
+      setIsLoading(false);
+      return;
     }
+
+    // Send Telegram notification to patient
+    try {
+      await supabase.functions.invoke('notify-patient-cancellation', {
+        body: { 
+          appointmentId: appointment.id, 
+          reason: rejectionReason || null 
+        }
+      });
+    } catch (notifyError) {
+      console.error('Failed to notify patient:', notifyError);
+      // Don't block the UI if notification fails
+    }
+
+    toast({
+      title: t('common.success'),
+      description: t('appointment.cancelled'),
+    });
+    onUpdate();
+    onOpenChange(false);
     setIsLoading(false);
     setRejectionReason('');
   };
