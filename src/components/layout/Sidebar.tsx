@@ -29,7 +29,7 @@ export function Sidebar({ activeTab, onTabChange, onLogout }: SidebarProps) {
           <div>
             <h1 className="text-lg font-semibold text-sidebar-foreground">MedBook</h1>
             <p className="text-xs text-sidebar-foreground/60">
-              {language === 'ARM' ? 'Բdelays Պdelays' : 'Панель врача'}
+              {t('ui.doctorPanel')}
             </p>
           </div>
         </div>
@@ -63,7 +63,7 @@ export function Sidebar({ activeTab, onTabChange, onLogout }: SidebarProps) {
                   : 'bg-sidebar-accent text-sidebar-foreground/70 hover:bg-sidebar-accent/80'
               )}
             >
-              Հdelays
+              {t('ui.languageArm')}
             </button>
             <button
               onClick={() => setLanguage('RU')}
@@ -83,7 +83,7 @@ export function Sidebar({ activeTab, onTabChange, onLogout }: SidebarProps) {
             className="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-all"
           >
             <LogOut className="h-5 w-5" />
-            <span className="font-medium">{language === 'ARM' ? 'Delays' : 'Выход'}</span>
+            <span className="font-medium">{t('common.logout')}</span>
           </button>
         </div>
       </div>

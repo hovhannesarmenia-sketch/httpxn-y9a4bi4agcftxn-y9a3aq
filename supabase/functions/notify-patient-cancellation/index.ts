@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { botTranslations, type Language } from "../_shared/translations.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -13,18 +14,8 @@ interface CancellationRequest {
   reason?: string;
 }
 
-const translations = {
-  ARM: {
-    cancelledByDoctor: "❌ Dzez granchumy chegharkvats e bzhishki koghmits.",
-    reason: "Patchar",
-    rebookMessage: "Khndrum enq grancvek nor zhami.",
-  },
-  RU: {
-    cancelledByDoctor: "❌ Ваш приём был отменён врачом.",
-    reason: "Причина",
-    rebookMessage: "Пожалуйста, запишитесь на другое время.",
-  },
-};
+// Use shared translations
+const translations = botTranslations;
 
 async function sendTelegramMessage(
   botToken: string,

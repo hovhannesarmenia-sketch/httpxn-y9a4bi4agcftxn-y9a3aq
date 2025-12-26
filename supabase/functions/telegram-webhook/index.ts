@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { botTranslations, type Language } from "../_shared/translations.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,7 +23,7 @@ type BookingStep =
 interface TelegramSession {
   telegram_user_id: number;
   step: BookingStep;
-  language: 'ARM' | 'RU' | null;
+  language: Language | null;
   patient_id: string | null;
   service_id: string | null;
   selected_date: string | null;
@@ -48,60 +49,8 @@ interface TelegramUpdate {
   };
 }
 
-const translations = {
-  ARM: {
-    welcome: "Barev dzez MedBook! Yntreq lezu:",
-    enterName: "Khndrum enq grel dzez anun (Anun Azganun):",
-    sharePhone: "Khndrum enq kisvatsnel dzez herakhosy:",
-    sharePhoneButton: "📱 Kisvatsnel herakhosy",
-    skipPhone: "Bats toel",
-    chooseService: "Yntreq tsarrayutyuny:",
-    otherService: "🔹 Ayl",
-    enterCustomReason: "Nkaragreq dzez aytselutyuny:",
-    chooseDate: "Yntreq amsativ:",
-    chooseTime: "Yntreq zham:",
-    confirmBooking: "Hastateq granchum?",
-    bookingConfirmed: "✅ Dzez granchumy stacvats e! Bzhishky piti hastati ayn.",
-    service: "Tsarrayutyun",
-    dateTime: "Amsativ u zham",
-    waitConfirmation: "Spasum enq bzhishki hastatman...",
-    appointmentConfirmed: "✅ Dzez granchumy hastatvats e!\n\n👨‍⚕️ Bzhishk: Dr. {doctorName}\n📅 {dateTime}",
-    appointmentRejected: "❌ Dzez granchumy merjvats e.\n\nPatchar: {reason}",
-    noSlots: "Ayt ory azat slotner chkan. Khndrum enq yntreq urarishy.",
-    yes: "✅ Hastatiel",
-    no: "❌ Cheghel",
-    back: "◀️ Het",
-    newDoctor: "👨‍⚕️ Nor granchum harcum:\n\nPacient: {patientName}\nTsarrayutyun: {service}\nAmset: {dateTime}\n\nSteghtsek gortsoghutyan:",
-    confirm: "✅ Hastatiel",
-    reject: "❌ Merjel",
-  },
-  RU: {
-    welcome: "Добро пожаловать в MedBook! Выберите язык:",
-    enterName: "Пожалуйста, введите ваше имя (Имя Фамилия):",
-    sharePhone: "Пожалуйста, поделитесь вашим номером телефона:",
-    sharePhoneButton: "📱 Поделиться номером",
-    skipPhone: "Пропустить",
-    chooseService: "Выберите услугу:",
-    otherService: "🔹 Другое",
-    enterCustomReason: "Опишите причину вашего визита:",
-    chooseDate: "Выберите дату:",
-    chooseTime: "Выберите время:",
-    confirmBooking: "Подтвердить запись?",
-    bookingConfirmed: "✅ Ваша заявка отправлена! Врач должен подтвердить её.",
-    service: "Услуга",
-    dateTime: "Дата и время",
-    waitConfirmation: "Ожидаем подтверждения врача...",
-    appointmentConfirmed: "✅ Ваша запись подтверждена!\n\n👨‍⚕️ Врач: Др. {doctorName}\n📅 {dateTime}",
-    appointmentRejected: "❌ Ваша запись отклонена.\n\nПричина: {reason}",
-    noSlots: "На этот день нет свободных слотов. Выберите другую дату.",
-    yes: "✅ Подтвердить",
-    no: "❌ Отмена",
-    back: "◀️ Назад",
-    newDoctor: "👨‍⚕️ Новая запись:\n\nПациент: {patientName}\nУслуга: {service}\nДата: {dateTime}\n\nВыберите действие:",
-    confirm: "✅ Подтвердить",
-    reject: "❌ Отклонить",
-  },
-};
+// Use shared translations
+const translations = botTranslations;
 
 // ============ HELPERS ============
 

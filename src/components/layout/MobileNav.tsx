@@ -73,7 +73,7 @@ export function MobileNav({ activeTab, onTabChange, onLogout }: MobileNavProps) 
                       : 'bg-muted text-muted-foreground hover:bg-muted/80'
                   )}
                 >
-                  Հայdelays
+                  {t('ui.languageArm')}
                 </button>
                 <button
                   onClick={() => setLanguage('RU')}
@@ -96,7 +96,7 @@ export function MobileNav({ activeTab, onTabChange, onLogout }: MobileNavProps) 
                 className="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-all"
               >
                 <LogOut className="h-5 w-5" />
-                <span className="font-medium">{language === 'ARM' ? 'Delays' : 'Выход'}</span>
+                <span className="font-medium">{t('common.logout')}</span>
               </button>
             </div>
           </div>
