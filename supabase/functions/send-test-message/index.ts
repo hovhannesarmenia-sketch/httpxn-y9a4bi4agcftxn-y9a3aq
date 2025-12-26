@@ -35,11 +35,14 @@ serve(async (req) => {
 
     const lang = doctor.interface_language || "RU";
     const testMessage = lang === "ARM"
-      ? "✅ MedBook: Թесе haghordagirutyuny hajox ashxатецй!"
+      ? "✅ MedBook: Թdelays haghordagirutyuny hajox ashxатецй!"
       : "✅ MedBook: Тестовое сообщение успешно отправлено!";
 
+    // Remove "bot" prefix if user accidentally included it
+    const botToken = doctor.telegram_bot_token.replace(/^bot/i, '');
+
     const response = await fetch(
-      `https://api.telegram.org/bot${doctor.telegram_bot_token}/sendMessage`,
+      `https://api.telegram.org/bot${botToken}/sendMessage`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
