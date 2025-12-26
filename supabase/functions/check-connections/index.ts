@@ -43,14 +43,25 @@ serve(async (req) => {
     // Check Telegram
     if (doctor.telegram_bot_token) {
       try {
+        // Remove "bot" prefix if it was accidentally included
+        const cleanToken = doctor.telegram_bot_token.replace(/^bot/i, "");
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+
         const response = await fetch(
-          `https://api.telegram.org/bot${doctor.telegram_bot_token}/getMe`
+          `https://api.telegram.org/bot${cleanToken}/getMe`,
+          { signal: controller.signal }
         );
+
+        clearTimeout(timeout);
+
         const data = await response.json();
-        telegramConnected = data.ok === true;
+        telegramConnected = data?.ok === true;
         console.log("Telegram check:", telegramConnected);
       } catch (e) {
         console.error("Telegram check error:", e);
+        telegramConnected = false;
       }
     }
 
