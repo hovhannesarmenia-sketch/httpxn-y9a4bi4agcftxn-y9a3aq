@@ -1,13 +1,14 @@
-import { Calendar, Users, Settings, Activity, Stethoscope } from 'lucide-react';
+import { Calendar, Users, Settings, Activity, Stethoscope, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/contexts/LanguageContext';
 
 interface SidebarProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
+  onLogout: () => void;
 }
 
-export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
+export function Sidebar({ activeTab, onTabChange, onLogout }: SidebarProps) {
   const { t, language, setLanguage } = useLanguage();
 
   const navItems = [
@@ -50,8 +51,8 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
           ))}
         </nav>
 
-        {/* Language Switcher */}
-        <div className="border-t border-sidebar-border p-4">
+        {/* Language Switcher & Logout */}
+        <div className="border-t border-sidebar-border p-4 space-y-3">
           <div className="flex gap-2">
             <button
               onClick={() => setLanguage('ARM')}
@@ -62,7 +63,7 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
                   : 'bg-sidebar-accent text-sidebar-foreground/70 hover:bg-sidebar-accent/80'
               )}
             >
-              Հայdelays
+              Հdelays
             </button>
             <button
               onClick={() => setLanguage('RU')}
@@ -76,6 +77,14 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
               Русский
             </button>
           </div>
+          
+          <button
+            onClick={onLogout}
+            className="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-all"
+          >
+            <LogOut className="h-5 w-5" />
+            <span className="font-medium">{language === 'ARM' ? 'Delays' : 'Выход'}</span>
+          </button>
         </div>
       </div>
     </aside>
