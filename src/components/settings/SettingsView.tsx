@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { User, Clock, Briefcase, Link2, Plus, Trash2, Save, Check } from 'lucide-react';
+import { User, Clock, Briefcase, Link2, Plus, Trash2, Save, Check, Bot, Eye, EyeOff } from 'lucide-react';
 import type { Database } from '@/integrations/supabase/types';
 
 type Doctor = Database['public']['Tables']['doctor']['Row'];
@@ -25,7 +25,7 @@ export function SettingsView() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const [doctorForm, setDoctorForm] = useState<Partial<Doctor>>({});
+  const [doctorForm, setDoctorForm] = useState<Partial<Doctor> & { ai_enabled?: boolean; llm_api_base_url?: string; llm_api_key?: string; llm_model_name?: string }>({});
   const [services, setServices] = useState<Partial<Service>[]>([]);
   const [newService, setNewService] = useState<Partial<Service>>({
     name_arm: '',
@@ -33,6 +33,8 @@ export function SettingsView() {
     default_duration_minutes: 30,
     is_active: true,
   });
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [apiKeyChanged, setApiKeyChanged] = useState(false);
 
   const { data: doctor, isLoading: doctorLoading } = useQuery({
     queryKey: ['doctor'],
@@ -63,7 +65,12 @@ export function SettingsView() {
 
   useEffect(() => {
     if (doctor) {
-      setDoctorForm(doctor);
+      setDoctorForm({
+        ...doctor,
+        // Don't show existing API key, just indicate if set
+        llm_api_key: doctor.llm_api_key ? '' : '',
+      });
+      setApiKeyChanged(false);
     }
   }, [doctor]);
 
@@ -72,11 +79,18 @@ export function SettingsView() {
   }, [existingServices]);
 
   const updateDoctor = useMutation({
-    mutationFn: async (data: Partial<Doctor>) => {
+    mutationFn: async (data: Partial<Doctor> & { ai_enabled?: boolean; llm_api_base_url?: string; llm_api_key?: string; llm_model_name?: string }) => {
+      const updateData: Record<string, unknown> = { ...data };
+      
+      // Only update API key if it was changed (not empty placeholder)
+      if (!apiKeyChanged && data.llm_api_key === '') {
+        delete updateData.llm_api_key;
+      }
+      
       if (doctor?.id) {
         const { error } = await supabase
           .from('doctor')
-          .update(data)
+          .update(updateData as any)
           .eq('id', doctor.id);
         if (error) throw error;
       } else {
@@ -85,13 +99,14 @@ export function SettingsView() {
           .insert([{ 
             first_name: data.first_name || 'Doctor',
             last_name: data.last_name || '',
-            ...data 
-          }]);
+            ...updateData 
+          } as any]);
         if (error) throw error;
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['doctor'] });
+      setApiKeyChanged(false);
       toast({
         title: t(language, 'settings.saved'),
         description: t(language, 'common.success'),
@@ -196,7 +211,7 @@ export function SettingsView() {
       <h1 className="text-2xl font-bold">{t(language, 'settings.title')}</h1>
 
       <Tabs defaultValue="profile" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="profile" className="flex items-center gap-2">
             <User className="h-4 w-4" />
             <span className="hidden sm:inline">{t(language, 'settings.profile')}</span>
@@ -212,6 +227,10 @@ export function SettingsView() {
           <TabsTrigger value="integrations" className="flex items-center gap-2">
             <Link2 className="h-4 w-4" />
             <span className="hidden sm:inline">{t(language, 'settings.integrations')}</span>
+          </TabsTrigger>
+          <TabsTrigger value="ai" className="flex items-center gap-2">
+            <Bot className="h-4 w-4" />
+            <span className="hidden sm:inline">{t(language, 'settings.aiAssistant')}</span>
           </TabsTrigger>
         </TabsList>
 
@@ -514,6 +533,102 @@ export function SettingsView() {
                   value={doctorForm.google_sheet_id || ''}
                   onChange={(e) => setDoctorForm({ ...doctorForm, google_sheet_id: e.target.value })}
                 />
+              </div>
+
+              <Button 
+                onClick={() => updateDoctor.mutate(doctorForm)}
+                disabled={updateDoctor.isPending}
+              >
+                <Save className="h-4 w-4 mr-2" />
+                {t(language, 'settings.save')}
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* AI Assistant Tab */}
+        <TabsContent value="ai">
+          <Card className="medical-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Bot className="h-5 w-5" />
+                {t(language, 'settings.aiAssistant')}
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                {t(language, 'settings.aiEnabledDescription')}
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>{t(language, 'settings.aiEnabled')}</Label>
+                  <p className="text-xs text-muted-foreground">
+                    {t(language, 'settings.aiEnabledDescription')}
+                  </p>
+                </div>
+                <Switch
+                  checked={doctorForm.ai_enabled ?? false}
+                  onCheckedChange={(checked) => setDoctorForm({ ...doctorForm, ai_enabled: checked })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>{t(language, 'settings.llmApiBaseUrl')}</Label>
+                <Input
+                  placeholder="https://api.deepseek.com/v1"
+                  value={doctorForm.llm_api_base_url || ''}
+                  onChange={(e) => setDoctorForm({ ...doctorForm, llm_api_base_url: e.target.value })}
+                  disabled={!doctorForm.ai_enabled}
+                />
+                <p className="text-xs text-muted-foreground">
+                  DeepSeek: https://api.deepseek.com/v1
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>{t(language, 'settings.llmApiKey')}</Label>
+                <div className="relative">
+                  <Input
+                    type={showApiKey ? 'text' : 'password'}
+                    placeholder={doctor?.llm_api_key ? '••••••••••••••••' : 'sk-...'}
+                    value={doctorForm.llm_api_key || ''}
+                    onChange={(e) => {
+                      setDoctorForm({ ...doctorForm, llm_api_key: e.target.value });
+                      setApiKeyChanged(true);
+                    }}
+                    disabled={!doctorForm.ai_enabled}
+                    className="pr-10"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                  >
+                    {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {doctor?.llm_api_key ? (
+                    <span className="text-green-600">{t(language, 'settings.aiKeyConfigured')}</span>
+                  ) : (
+                    <span className="text-yellow-600">{t(language, 'settings.aiKeyNotConfigured')}</span>
+                  )}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>{t(language, 'settings.llmModelName')}</Label>
+                <Input
+                  placeholder="deepseek-chat"
+                  value={doctorForm.llm_model_name || ''}
+                  onChange={(e) => setDoctorForm({ ...doctorForm, llm_model_name: e.target.value })}
+                  disabled={!doctorForm.ai_enabled}
+                />
+                <p className="text-xs text-muted-foreground">
+                  DeepSeek: deepseek-chat, deepseek-coder
+                </p>
               </div>
 
               <Button 

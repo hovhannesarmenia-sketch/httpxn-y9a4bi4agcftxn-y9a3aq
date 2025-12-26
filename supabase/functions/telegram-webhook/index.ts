@@ -38,16 +38,30 @@ interface TelegramUpdate {
 }
 
 interface UserSession {
-  step: 'choose_language' | 'enter_name' | 'share_phone' | 'choose_service' | 'choose_date' | 'choose_time' | 'confirm';
+  step: 'choose_language' | 'enter_name' | 'share_phone' | 'choose_service' | 'choose_date' | 'choose_time' | 'confirm' | 'enter_custom_reason';
   language?: 'ARM' | 'RU';
   firstName?: string;
   lastName?: string;
   phone?: string;
   serviceId?: string;
   serviceName?: string;
+  customReason?: string;
   date?: string;
   time?: string;
   duration?: number;
+}
+
+interface LLMClassificationResult {
+  service_id: string;
+  duration_minutes: number;
+  confidence: number;
+}
+
+interface ServiceInfo {
+  id: string;
+  name_arm: string;
+  name_ru: string;
+  default_duration_minutes: number;
 }
 
 const userSessions = new Map<number, UserSession>();
@@ -169,6 +183,132 @@ function formatDateForDisplay(dateStr: string, lang: 'ARM' | 'RU'): string {
   });
 }
 
+// LLM Classification for free-text custom reasons
+async function classifyWithLLM(
+  customReason: string,
+  services: ServiceInfo[],
+  doctor: { ai_enabled?: boolean; llm_api_base_url?: string; llm_api_key?: string; llm_model_name?: string },
+  lang: 'ARM' | 'RU'
+): Promise<{ serviceId: string | null; duration: number; serviceName: string } | null> {
+  // Check if AI is enabled and configured
+  if (!doctor.ai_enabled || !doctor.llm_api_key || !doctor.llm_api_base_url) {
+    console.log("AI assistant is disabled or not configured, skipping LLM classification");
+    return null;
+  }
+
+  try {
+    const serviceList = services.map(s => ({
+      id: s.id,
+      name: lang === 'ARM' ? s.name_arm : s.name_ru,
+      duration_minutes: s.default_duration_minutes
+    }));
+
+    const prompt = `You are a medical appointment assistant. A patient has described their problem in free text. Based on this description, classify which medical service they need.
+
+Patient's description: "${customReason}"
+
+Available services:
+${serviceList.map(s => `- ID: ${s.id}, Name: "${s.name}", Typical duration: ${s.duration_minutes} minutes`).join('\n')}
+
+Instructions:
+1. Analyze the patient's description
+2. Choose the most appropriate service_id from the list above
+3. Suggest a duration_minutes (must be one of: 30, 60, or 90)
+4. Provide a confidence score from 0 to 1 indicating how certain you are about the match
+
+Return ONLY a valid JSON object with this exact format:
+{"service_id": "uuid-here", "duration_minutes": 30, "confidence": 0.85}
+
+If no service matches well, set confidence below 0.5.`;
+
+    const modelName = doctor.llm_model_name || 'deepseek-chat';
+    const apiUrl = doctor.llm_api_base_url.endsWith('/') 
+      ? `${doctor.llm_api_base_url}chat/completions` 
+      : `${doctor.llm_api_base_url}/chat/completions`;
+
+    console.log(`Calling LLM API: ${apiUrl} with model: ${modelName}`);
+
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${doctor.llm_api_key}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: modelName,
+        messages: [
+          { role: 'system', content: 'You are a medical appointment classification assistant. Always respond with valid JSON only.' },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.3,
+        max_tokens: 200,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`LLM API error (${response.status}):`, errorText);
+      return null;
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content?.trim();
+
+    if (!content) {
+      console.error("LLM returned empty content");
+      return null;
+    }
+
+    console.log("LLM response content:", content);
+
+    // Parse JSON from response (handle potential markdown code blocks)
+    let jsonStr = content;
+    if (content.includes('```')) {
+      const match = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+      jsonStr = match ? match[1].trim() : content;
+    }
+
+    const result: LLMClassificationResult = JSON.parse(jsonStr);
+
+    console.log("Parsed LLM result:", result);
+
+    // Validate result
+    if (!result.service_id || typeof result.confidence !== 'number') {
+      console.error("Invalid LLM result format");
+      return null;
+    }
+
+    // Check confidence threshold
+    if (result.confidence < 0.7) {
+      console.log(`Low confidence (${result.confidence}), falling back to manual selection`);
+      return null;
+    }
+
+    // Validate service_id exists
+    const matchedService = services.find(s => s.id === result.service_id);
+    if (!matchedService) {
+      console.error(`Service ID ${result.service_id} not found in available services`);
+      return null;
+    }
+
+    // Validate duration
+    const validDurations = [30, 60, 90];
+    const duration = validDurations.includes(result.duration_minutes) 
+      ? result.duration_minutes 
+      : matchedService.default_duration_minutes;
+
+    return {
+      serviceId: result.service_id,
+      duration,
+      serviceName: lang === 'ARM' ? matchedService.name_arm : matchedService.name_ru
+    };
+
+  } catch (error) {
+    console.error("LLM classification error:", error);
+    return null;
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -222,6 +362,27 @@ serve(async (req) => {
           session.step = 'choose_date';
           userSessions.set(userId, session);
           await sendTelegramMessage(botToken, chatId, translations[lang].enterCustomReason);
+        } else if (data === 'service_keep_other') {
+          // User chose to keep the custom reason as "Other"
+          session.serviceId = null as any;
+          session.duration = 30;
+          session.step = 'choose_date';
+          
+          const dates = getAvailableDates();
+          const keyboard = {
+            inline_keyboard: dates.map(date => [{
+              text: formatDateForDisplay(date, lang),
+              callback_data: `date_${date}`,
+            }]).reduce((acc, curr, idx) => {
+              const rowIdx = Math.floor(idx / 3);
+              if (!acc[rowIdx]) acc[rowIdx] = [];
+              acc[rowIdx].push(curr[0]);
+              return acc;
+            }, [] as { text: string; callback_data: string }[][]),
+          };
+          
+          await sendTelegramMessage(botToken, chatId, t.chooseDate, keyboard);
+          userSessions.set(userId, session);
         } else {
           const serviceId = data.replace('service_', '');
           const { data: service } = await supabase
@@ -551,24 +712,72 @@ serve(async (req) => {
           remove_keyboard: true 
         });
       } else if (session.step === 'choose_date' && session.serviceId === 'other' && text) {
-        // Custom reason entered
-        session.serviceName = text;
-        session.duration = 30; // Default duration for custom
+        // Custom reason entered - try LLM classification
+        session.customReason = text;
         
-        const dates = getAvailableDates();
-        const keyboard = {
-          inline_keyboard: dates.map(date => [{
-            text: formatDateForDisplay(date, lang),
-            callback_data: `date_${date}`,
-          }]).reduce((acc, curr, idx) => {
-            const rowIdx = Math.floor(idx / 3);
-            if (!acc[rowIdx]) acc[rowIdx] = [];
-            acc[rowIdx].push(curr[0]);
-            return acc;
-          }, [] as { text: string; callback_data: string }[][]),
-        };
+        // Get services for classification
+        const { data: services } = await supabase
+          .from('services')
+          .select('id, name_arm, name_ru, default_duration_minutes')
+          .eq('doctor_id', doctor.id)
+          .eq('is_active', true);
 
-        await sendTelegramMessage(botToken, chatId, t.chooseDate, keyboard);
+        // Try to classify with LLM if enabled
+        const llmResult = await classifyWithLLM(
+          text,
+          services || [],
+          doctor,
+          lang
+        );
+
+        if (llmResult && llmResult.serviceId) {
+          // LLM successfully classified the reason
+          console.log(`LLM classified custom reason to service: ${llmResult.serviceName}`);
+          session.serviceId = llmResult.serviceId;
+          session.serviceName = `${llmResult.serviceName} (AI)`;
+          session.duration = llmResult.duration;
+          
+          // Proceed to date selection
+          const dates = getAvailableDates();
+          const keyboard = {
+            inline_keyboard: dates.map(date => [{
+              text: formatDateForDisplay(date, lang),
+              callback_data: `date_${date}`,
+            }]).reduce((acc, curr, idx) => {
+              const rowIdx = Math.floor(idx / 3);
+              if (!acc[rowIdx]) acc[rowIdx] = [];
+              acc[rowIdx].push(curr[0]);
+              return acc;
+            }, [] as { text: string; callback_data: string }[][]),
+          };
+
+          await sendTelegramMessage(botToken, chatId, t.chooseDate, keyboard);
+        } else {
+          // Fallback: Ask patient to choose service manually
+          console.log("LLM classification failed or disabled, falling back to manual selection");
+          session.serviceName = text;
+          session.duration = 30;
+          
+          // Show service selection again
+          const serviceButtons = (services || []).map(s => [{
+            text: lang === 'ARM' ? s.name_arm : s.name_ru,
+            callback_data: `service_${s.id}`,
+          }]);
+
+          // Add option to keep as "Other"
+          serviceButtons.push([{ 
+            text: lang === 'ARM' ? '📝 Paheq ibrev "Ayl"' : '📝 Оставить как "Другое"', 
+            callback_data: 'service_keep_other' 
+          }]);
+
+          const keyboard = { inline_keyboard: serviceButtons };
+          const fallbackMsg = lang === 'ARM' 
+            ? 'Yntreq tsarrayutyuny kamarts shdpvel dzez aytselutyuny:'
+            : 'Выберите услугу или оставьте как "Другое":';
+
+          await sendTelegramMessage(botToken, chatId, fallbackMsg, keyboard);
+        }
+        
         userSessions.set(userId, session);
       }
     }
