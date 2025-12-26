@@ -1,73 +1,64 @@
-# Welcome to your Lovable project
+# MedBook - Medical Appointment Booking System
 
-## Project info
+A Telegram-based medical appointment booking system with admin panel.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Features
 
-## How can I edit this code?
+- Patient booking via Telegram bot
+- Admin panel for managing appointments, patients, and settings
+- Google Calendar and Google Sheets integration
+- Automated reminders (24h and 2h before appointments)
+- AI-powered service classification (optional)
 
-There are several ways of editing your application.
+## AI Assistant Configuration
 
-**Use Lovable**
+The system includes an optional AI assistant that helps classify free-text patient reasons into the appropriate medical service. This is useful when patients choose "Other" and describe their problem in their own words.
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+### What the AI does
 
-Changes made via Lovable will be committed automatically to this repo.
+- **Classification only**: The AI analyzes patient descriptions and suggests the most appropriate service from your configured list
+- **Duration suggestion**: Suggests appointment duration (30, 60, or 90 minutes)
+- **Fallback behavior**: If AI is disabled, not configured, or confidence is low, patients are asked to select a service manually
 
-**Use your preferred IDE**
+### What the AI does NOT do
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+- Does NOT choose time slots
+- Does NOT bypass scheduling logic or overlap checks
+- Does NOT write directly to Google Calendar or Sheets
+- All scheduling uses existing Postgres triggers and RLS
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+### How to enable
 
-Follow these steps:
+1. Go to **Settings → AI Assistant** in the admin panel
+2. Toggle **"Enable AI assistant"** ON
+3. Configure:
+   - **LLM API Base URL**: e.g., `https://api.deepseek.com/v1` for DeepSeek
+   - **LLM API Key**: Your API key (stored securely, not visible after saving)
+   - **LLM Model name**: e.g., `deepseek-chat`
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+### Supported LLM providers
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+Any OpenAI-compatible API works:
+- **DeepSeek**: `https://api.deepseek.com/v1` with model `deepseek-chat`
+- **OpenAI**: `https://api.openai.com/v1` with model `gpt-4o-mini`
+- **Local LLMs**: Any OpenAI-compatible endpoint
 
-# Step 3: Install the necessary dependencies.
-npm i
+## Telegram Webhook Setup
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+Set your webhook URL:
+```
+https://ibaidrkbbpoixnbzpppi.supabase.co/functions/v1/telegram-webhook
 ```
 
-**Edit a file directly in GitHub**
+## Technologies
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+- Vite + React + TypeScript
+- shadcn-ui + Tailwind CSS
+- Supabase (Database, Edge Functions, Auth)
 
-**Use GitHub Codespaces**
+## Development
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+```sh
+npm install
+npm run dev
+```

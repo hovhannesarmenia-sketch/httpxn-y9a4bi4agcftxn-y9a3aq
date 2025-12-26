@@ -86,6 +86,7 @@ export type Database = {
       }
       doctor: {
         Row: {
+          ai_enabled: boolean | null
           created_at: string | null
           first_name: string
           google_calendar_id: string | null
@@ -95,6 +96,9 @@ export type Database = {
             | Database["public"]["Enums"]["interface_language"]
             | null
           last_name: string
+          llm_api_base_url: string | null
+          llm_api_key: string | null
+          llm_model_name: string | null
           slot_step_minutes: number | null
           telegram_bot_token: string | null
           telegram_chat_id: string | null
@@ -104,6 +108,7 @@ export type Database = {
           work_days: Database["public"]["Enums"]["day_of_week"][] | null
         }
         Insert: {
+          ai_enabled?: boolean | null
           created_at?: string | null
           first_name: string
           google_calendar_id?: string | null
@@ -113,6 +118,9 @@ export type Database = {
             | Database["public"]["Enums"]["interface_language"]
             | null
           last_name: string
+          llm_api_base_url?: string | null
+          llm_api_key?: string | null
+          llm_model_name?: string | null
           slot_step_minutes?: number | null
           telegram_bot_token?: string | null
           telegram_chat_id?: string | null
@@ -122,6 +130,7 @@ export type Database = {
           work_days?: Database["public"]["Enums"]["day_of_week"][] | null
         }
         Update: {
+          ai_enabled?: boolean | null
           created_at?: string | null
           first_name?: string
           google_calendar_id?: string | null
@@ -131,6 +140,9 @@ export type Database = {
             | Database["public"]["Enums"]["interface_language"]
             | null
           last_name?: string
+          llm_api_base_url?: string | null
+          llm_api_key?: string | null
+          llm_model_name?: string | null
           slot_step_minutes?: number | null
           telegram_bot_token?: string | null
           telegram_chat_id?: string | null
