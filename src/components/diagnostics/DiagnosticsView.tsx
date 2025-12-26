@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -16,28 +16,31 @@ import {
   Calendar, 
   FileSpreadsheet,
   AlertCircle,
-  Loader2
+  Loader2,
+  Settings2
 } from 'lucide-react';
 
-type ConnectionStatus = 'connected' | 'disconnected' | 'checking' | 'unknown';
+type ConnectionStatus = 'connected' | 'disconnected' | 'checking' | 'not_configured';
 
 interface ConnectionState {
   telegram: ConnectionStatus;
   googleCalendar: ConnectionStatus;
   googleSheets: ConnectionStatus;
+  lastChecked: Date | null;
 }
 
 export function DiagnosticsView() {
   const { language } = useLanguage();
   const { toast } = useToast();
   const [connectionStatus, setConnectionStatus] = useState<ConnectionState>({
-    telegram: 'unknown',
-    googleCalendar: 'unknown',
-    googleSheets: 'unknown',
+    telegram: 'not_configured',
+    googleCalendar: 'not_configured',
+    googleSheets: 'not_configured',
+    lastChecked: null,
   });
   const [isChecking, setIsChecking] = useState(false);
 
-  const { data: doctor } = useQuery({
+  const { data: doctor, isLoading: doctorLoading } = useQuery({
     queryKey: ['doctor'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -51,32 +54,83 @@ export function DiagnosticsView() {
     },
   });
 
+  // Derive initial status from doctor settings
+  useEffect(() => {
+    if (doctor) {
+      setConnectionStatus(prev => ({
+        ...prev,
+        telegram: doctor.telegram_bot_token && doctor.telegram_chat_id 
+          ? (prev.lastChecked ? prev.telegram : 'not_configured')
+          : 'not_configured',
+        googleCalendar: doctor.google_calendar_id 
+          ? (prev.lastChecked ? prev.googleCalendar : 'not_configured')
+          : 'not_configured',
+        googleSheets: doctor.google_sheet_id 
+          ? (prev.lastChecked ? prev.googleSheets : 'not_configured')
+          : 'not_configured',
+      }));
+    }
+  }, [doctor]);
+
+  // Auto-check connections on mount if settings are configured
+  useEffect(() => {
+    if (doctor && !connectionStatus.lastChecked) {
+      const hasAnyConfig = doctor.telegram_bot_token || doctor.google_calendar_id || doctor.google_sheet_id;
+      if (hasAnyConfig) {
+        checkConnections();
+      }
+    }
+  }, [doctor]);
+
   const checkConnections = async () => {
+    if (!doctor?.id) return;
+    
     setIsChecking(true);
-    setConnectionStatus({
-      telegram: 'checking',
-      googleCalendar: 'checking',
-      googleSheets: 'checking',
-    });
+    setConnectionStatus(prev => ({
+      ...prev,
+      telegram: doctor.telegram_bot_token ? 'checking' : 'not_configured',
+      googleCalendar: doctor.google_calendar_id ? 'checking' : 'not_configured',
+      googleSheets: doctor.google_sheet_id ? 'checking' : 'not_configured',
+    }));
 
     try {
       const { data, error } = await supabase.functions.invoke('check-connections', {
-        body: { doctorId: doctor?.id },
+        body: { doctorId: doctor.id },
       });
 
       if (error) throw error;
 
       setConnectionStatus({
-        telegram: data?.telegram ? 'connected' : 'disconnected',
-        googleCalendar: data?.googleCalendar ? 'connected' : 'disconnected',
-        googleSheets: data?.googleSheets ? 'connected' : 'disconnected',
+        telegram: !doctor.telegram_bot_token ? 'not_configured' 
+          : data?.telegram ? 'connected' : 'disconnected',
+        googleCalendar: !doctor.google_calendar_id ? 'not_configured'
+          : data?.googleCalendar ? 'connected' : 'disconnected',
+        googleSheets: !doctor.google_sheet_id ? 'not_configured'
+          : data?.googleSheets ? 'connected' : 'disconnected',
+        lastChecked: new Date(),
+      });
+
+      toast({
+        title: language === 'ARM' ? 'Stugumner avartvel en' : 'Проверка завершена',
+        description: language === 'ARM' 
+          ? 'Integratsianeri karvavijakner tharmatsvel en' 
+          : 'Статусы интеграций обновлены',
       });
     } catch (error) {
       console.error('Connection check failed:', error);
-      setConnectionStatus({
-        telegram: doctor?.telegram_bot_token ? 'unknown' : 'disconnected',
-        googleCalendar: doctor?.google_calendar_id ? 'unknown' : 'disconnected',
-        googleSheets: doctor?.google_sheet_id ? 'unknown' : 'disconnected',
+      setConnectionStatus(prev => ({
+        telegram: doctor.telegram_bot_token ? 'disconnected' : 'not_configured',
+        googleCalendar: doctor.google_calendar_id ? 'disconnected' : 'not_configured',
+        googleSheets: doctor.google_sheet_id ? 'disconnected' : 'not_configured',
+        lastChecked: new Date(),
+      }));
+
+      toast({
+        title: language === 'ARM' ? 'Stugman skhal' : 'Ошибка проверки',
+        description: language === 'ARM' 
+          ? 'Chi hajogvats stugel kpnumnerun' 
+          : 'Не удалось проверить подключения',
+        variant: 'destructive',
       });
     } finally {
       setIsChecking(false);
@@ -90,22 +144,33 @@ export function DiagnosticsView() {
       });
       
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
       return data;
     },
     onSuccess: () => {
+      setConnectionStatus(prev => ({
+        ...prev,
+        telegram: 'connected',
+        lastChecked: new Date(),
+      }));
       toast({
         title: t(language, 'common.success'),
         description: language === 'ARM' 
-          ? 'Թdelays հaxordagir ուdelays'
+          ? 'Test haxordagiry uxxarkvats e'
           : 'Тестовое сообщение отправлено',
       });
     },
-    onError: () => {
+    onError: (error: Error) => {
+      setConnectionStatus(prev => ({
+        ...prev,
+        telegram: 'disconnected',
+        lastChecked: new Date(),
+      }));
       toast({
         title: t(language, 'common.error'),
-        description: language === 'ARM'
-          ? 'Չ haxordel haghordagirutyuny'
-          : 'Не удалось отправить сообщение',
+        description: error.message || (language === 'ARM'
+          ? 'Chi hajoxvats uxarkel haxordagirutyuny'
+          : 'Не удалось отправить сообщение'),
         variant: 'destructive',
       });
     },
@@ -119,6 +184,8 @@ export function DiagnosticsView() {
         return <XCircle className="h-5 w-5 text-medical-error" />;
       case 'checking':
         return <Loader2 className="h-5 w-5 text-primary animate-spin" />;
+      case 'not_configured':
+        return <Settings2 className="h-5 w-5 text-muted-foreground" />;
       default:
         return <AlertCircle className="h-5 w-5 text-medical-warning" />;
     }
@@ -144,26 +211,48 @@ export function DiagnosticsView() {
             {t(language, 'common.loading')}
           </Badge>
         );
+      case 'not_configured':
+        return (
+          <Badge variant="outline" className="text-muted-foreground">
+            {language === 'ARM' ? 'Chkarxavorvats' : 'Не настроено'}
+          </Badge>
+        );
       default:
         return (
           <Badge variant="outline">
-            {language === 'ARM' ? 'Անdelays' : 'Неизвестно'}
+            {language === 'ARM' ? 'Anhayt' : 'Неизвестно'}
           </Badge>
         );
     }
   };
 
+  if (doctorLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{t(language, 'diagnostics.title')}</h1>
+        <div>
+          <h1 className="text-2xl font-bold">{t(language, 'diagnostics.title')}</h1>
+          {connectionStatus.lastChecked && (
+            <p className="text-sm text-muted-foreground">
+              {language === 'ARM' ? 'Vergin stugum:' : 'Последняя проверка:'}{' '}
+              {connectionStatus.lastChecked.toLocaleTimeString()}
+            </p>
+          )}
+        </div>
         <Button 
           onClick={checkConnections}
-          disabled={isChecking}
+          disabled={isChecking || !doctor}
           variant="outline"
         >
           <RefreshCw className={`h-4 w-4 mr-2 ${isChecking ? 'animate-spin' : ''}`} />
-          {language === 'ARM' ? 'Ստdelays' : 'Проверить'}
+          {language === 'ARM' ? 'Stugel' : 'Проверить'}
         </Button>
       </div>
 
@@ -181,7 +270,11 @@ export function DiagnosticsView() {
                   <p className="text-sm text-muted-foreground">
                     {doctor?.telegram_bot_token 
                       ? `Token: ****${doctor.telegram_bot_token.slice(-6)}`
-                      : language === 'ARM' ? 'Token-ը delays' : 'Token не настроен'
+                      : language === 'ARM' ? 'Token chkarxavorvats' : 'Token не настроен'
+                    }
+                    {doctor?.telegram_chat_id 
+                      ? ` | Chat ID: ${doctor.telegram_chat_id}`
+                      : ''
                     }
                   </p>
                 </div>
@@ -206,8 +299,10 @@ export function DiagnosticsView() {
                   <h3 className="font-semibold">{t(language, 'diagnostics.googleCalendar')}</h3>
                   <p className="text-sm text-muted-foreground">
                     {doctor?.google_calendar_id 
-                      ? `ID: ${doctor.google_calendar_id.substring(0, 20)}...`
-                      : language === 'ARM' ? 'ID-ը delays' : 'ID не настроен'
+                      ? `ID: ${doctor.google_calendar_id.length > 30 
+                          ? doctor.google_calendar_id.substring(0, 30) + '...' 
+                          : doctor.google_calendar_id}`
+                      : language === 'ARM' ? 'Calendar ID chkarxavorvats' : 'Calendar ID не настроен'
                     }
                   </p>
                 </div>
@@ -232,8 +327,10 @@ export function DiagnosticsView() {
                   <h3 className="font-semibold">{t(language, 'diagnostics.googleSheets')}</h3>
                   <p className="text-sm text-muted-foreground">
                     {doctor?.google_sheet_id 
-                      ? `ID: ${doctor.google_sheet_id.substring(0, 20)}...`
-                      : language === 'ARM' ? 'ID-ը delays' : 'ID не настроен'
+                      ? `ID: ${doctor.google_sheet_id.length > 30 
+                          ? doctor.google_sheet_id.substring(0, 30) + '...' 
+                          : doctor.google_sheet_id}`
+                      : language === 'ARM' ? 'Sheet ID chkarxavorvats' : 'Sheet ID не настроен'
                     }
                   </p>
                 </div>
@@ -253,7 +350,7 @@ export function DiagnosticsView() {
           <CardTitle>{t(language, 'diagnostics.testMessage')}</CardTitle>
           <CardDescription>
             {language === 'ARM' 
-              ? ' Delays Telegram haxordagirutyuny'
+              ? 'Uxarkel test haxordagir Telegram-um'
               : 'Отправить тестовое сообщение в Telegram'
             }
           </CardDescription>
@@ -273,8 +370,8 @@ export function DiagnosticsView() {
           {(!doctor?.telegram_bot_token || !doctor?.telegram_chat_id) && (
             <p className="text-sm text-muted-foreground mt-2">
               {language === 'ARM' 
-                ? 'Khndrum enq kardelayelel Telegram Token-y ew Chat ID-n'
-                : 'Сначала настройте Telegram Token и Chat ID в настройках'
+                ? 'Nakh karxavoriq Telegram Token-y ev Chat ID-n Settings → Integrations baxnum'
+                : 'Сначала настройте Telegram Token и Chat ID в разделе Настройки → Интеграции'
               }
             </p>
           )}
@@ -284,25 +381,33 @@ export function DiagnosticsView() {
       {/* System Info */}
       <Card className="medical-card">
         <CardHeader>
-          <CardTitle>{language === 'ARM' ? 'Համակdelays' : 'Системная информация'}</CardTitle>
+          <CardTitle>{language === 'ARM' ? 'Hamakargayin teghekutyun' : 'Системная информация'}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
-              <p className="text-muted-foreground">{language === 'ARM' ? ' Delays' : 'Версия'}</p>
+              <p className="text-muted-foreground">{language === 'ARM' ? 'Tarberaky' : 'Версия'}</p>
               <p className="font-medium">1.0.0 MVP</p>
             </div>
             <div>
-              <p className="text-muted-foreground">{language === 'ARM' ? 'Ժ delays' : 'Часовой пояс'}</p>
+              <p className="text-muted-foreground">{language === 'ARM' ? 'Zhamagotvadrky' : 'Часовой пояс'}</p>
               <p className="font-medium">Asia/Yerevan</p>
             </div>
             <div>
-              <p className="text-muted-foreground">{language === 'ARM' ? 'Лязки' : 'Языки'}</p>
+              <p className="text-muted-foreground">{language === 'ARM' ? 'Lezuner' : 'Языки'}</p>
               <p className="font-medium">ARM, RU</p>
             </div>
             <div>
-              <p className="text-muted-foreground">{language === 'ARM' ? 'Bndelays' : 'Слот-шаг'}</p>
+              <p className="text-muted-foreground">{language === 'ARM' ? 'Slot qayl' : 'Слот-шаг'}</p>
               <p className="font-medium">{doctor?.slot_step_minutes || 15} {t(language, 'appointment.minutes')}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">{language === 'ARM' ? 'Bzhishk' : 'Врач'}</p>
+              <p className="font-medium">{doctor?.first_name} {doctor?.last_name}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">{language === 'ARM' ? 'AI ognutyun' : 'AI ассистент'}</p>
+              <p className="font-medium">{doctor?.ai_enabled ? '✅ Активен' : '❌ Отключён'}</p>
             </div>
           </div>
         </CardContent>

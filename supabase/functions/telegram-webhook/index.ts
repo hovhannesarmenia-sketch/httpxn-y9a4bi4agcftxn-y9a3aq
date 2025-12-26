@@ -64,6 +64,7 @@ interface ServiceInfo {
   default_duration_minutes: number;
 }
 
+// In-memory session store (cleared on function cold start)
 const userSessions = new Map<number, UserSession>();
 
 const translations = {
@@ -160,18 +161,32 @@ async function answerCallbackQuery(botToken: string, callbackQueryId: string, te
   });
 }
 
-function getAvailableDates(): string[] {
+function getAvailableDates(workDays?: string[]): string[] {
   const dates: string[] = [];
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  for (let i = 1; i <= 14; i++) {
+  // Map day names to JS day numbers (0 = Sunday, 1 = Monday, etc.)
+  const dayNameToNumber: Record<string, number> = {
+    SUNDAY: 0,
+    MONDAY: 1,
+    TUESDAY: 2,
+    WEDNESDAY: 3,
+    THURSDAY: 4,
+    FRIDAY: 5,
+    SATURDAY: 6,
+  };
+
+  const validDays = new Set(workDays?.map(d => dayNameToNumber[d]) || [1, 2, 3, 4, 5]);
+
+  for (let i = 1; i <= 21; i++) {
     const date = new Date(today);
     date.setDate(date.getDate() + i);
     const dayOfWeek = date.getDay();
-    // Skip Sunday (0)
-    if (dayOfWeek !== 0) {
+    
+    if (validDays.has(dayOfWeek)) {
       dates.push(date.toISOString().split('T')[0]);
+      if (dates.length >= 14) break;
     }
   }
   return dates;
@@ -187,7 +202,7 @@ function formatDateForDisplay(dateStr: string, lang: 'ARM' | 'RU'): string {
   });
 }
 
-// LLM Classification for free-text custom reasons
+// LLM Classification for free-text custom reasons (optional)
 async function classifyWithLLM(
   customReason: string,
   services: ServiceInfo[],
@@ -313,6 +328,47 @@ If no service matches well, set confidence below 0.5.`;
   }
 }
 
+// Helper to get or load patient session from database
+async function getOrCreateSession(
+  supabase: any,
+  telegramUserId: number
+): Promise<UserSession> {
+  // First check in-memory cache
+  const cached = userSessions.get(telegramUserId);
+  if (cached) {
+    console.log(`[Session] Found in-memory session for user ${telegramUserId}, step: ${cached.step}`);
+    return cached;
+  }
+
+  // Check if patient exists in database (they have already completed initial flow)
+  const { data: patient } = await supabase
+    .from('patients')
+    .select('*')
+    .eq('telegram_user_id', telegramUserId)
+    .maybeSingle();
+
+  if (patient) {
+    // Returning patient - skip to service selection
+    console.log(`[Session] Found existing patient ${telegramUserId}, creating session at choose_service`);
+    const patientData = patient as { language?: string; first_name?: string; last_name?: string; phone_number?: string };
+    const session: UserSession = {
+      step: 'choose_service',
+      language: (patientData.language === 'ARM' ? 'ARM' : 'RU') as 'ARM' | 'RU',
+      firstName: patientData.first_name,
+      lastName: patientData.last_name || undefined,
+      phone: patientData.phone_number || undefined,
+    };
+    userSessions.set(telegramUserId, session);
+    return session;
+  }
+
+  // New user - start fresh
+  console.log(`[Session] New user ${telegramUserId}, starting at choose_language`);
+  const session: UserSession = { step: 'choose_language' };
+  userSessions.set(telegramUserId, session);
+  return session;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -348,31 +404,43 @@ serve(async (req) => {
       const userId = callback.from.id;
       const chatId = callback.message.chat.id;
       const data = callback.data;
-      const session = userSessions.get(userId) || { step: 'choose_language' };
+      
+      const session = await getOrCreateSession(supabase, userId);
       const lang = session.language || 'RU';
       const t = translations[lang];
+
+      console.log(`[Callback] User ${userId}, data: ${data}, current step: ${session.step}`);
 
       await answerCallbackQuery(botToken, callback.id);
 
       if (data.startsWith('lang_')) {
+        // Language selection
         session.language = data === 'lang_arm' ? 'ARM' : 'RU';
         session.step = 'enter_name';
         userSessions.set(userId, session);
+        
+        console.log(`[Callback] Language set to ${session.language}, moving to enter_name`);
         await sendTelegramMessage(botToken, chatId, translations[session.language].enterName);
+        
       } else if (data.startsWith('service_')) {
         if (data === 'service_other') {
+          // User selected "Other" - ask for custom reason
           session.serviceId = 'other';
           session.serviceName = t.otherService;
-          session.step = 'choose_date';
+          session.step = 'enter_custom_reason';
           userSessions.set(userId, session);
-          await sendTelegramMessage(botToken, chatId, translations[lang].enterCustomReason);
+          
+          console.log(`[Callback] Service=other, moving to enter_custom_reason`);
+          await sendTelegramMessage(botToken, chatId, t.enterCustomReason);
+          
         } else if (data === 'service_keep_other') {
           // User chose to keep the custom reason as "Other"
           session.serviceId = null as any;
           session.duration = 30;
           session.step = 'choose_date';
+          userSessions.set(userId, session);
           
-          const dates = getAvailableDates();
+          const dates = getAvailableDates(doctor.work_days as string[] | undefined);
           const keyboard = {
             inline_keyboard: dates.map(date => [{
               text: formatDateForDisplay(date, lang),
@@ -386,8 +454,8 @@ serve(async (req) => {
           };
           
           await sendTelegramMessage(botToken, chatId, t.chooseDate, keyboard);
-          userSessions.set(userId, session);
         } else {
+          // User selected a specific service
           const serviceId = data.replace('service_', '');
           const { data: service } = await supabase
             .from('services')
@@ -402,7 +470,9 @@ serve(async (req) => {
             session.step = 'choose_date';
             userSessions.set(userId, session);
 
-            const dates = getAvailableDates();
+            console.log(`[Callback] Service selected: ${session.serviceName}, moving to choose_date`);
+
+            const dates = getAvailableDates(doctor.work_days as string[] | undefined);
             const keyboard = {
               inline_keyboard: dates.map(date => [{
                 text: formatDateForDisplay(date, lang),
@@ -422,6 +492,8 @@ serve(async (req) => {
         session.date = data.replace('date_', '');
         session.step = 'choose_time';
         userSessions.set(userId, session);
+
+        console.log(`[Callback] Date selected: ${session.date}, moving to choose_time`);
 
         // Generate time slots based on doctor's work hours
         const startHour = parseInt(doctor.work_day_start_time?.split(':')[0] || '9');
@@ -480,7 +552,9 @@ serve(async (req) => {
         session.step = 'confirm';
         userSessions.set(userId, session);
 
-        const confirmText = `${t.confirmBooking}\n\n${t.service}: ${session.serviceName}\n${t.dateTime}: ${session.date} ${session.time}`;
+        console.log(`[Callback] Time selected: ${session.time}, moving to confirm`);
+
+        const confirmText = `${t.confirmBooking}\n\n${t.service}: ${session.serviceName || session.customReason}\n${t.dateTime}: ${session.date} ${session.time}`;
         const keyboard = {
           inline_keyboard: [
             [
@@ -492,7 +566,9 @@ serve(async (req) => {
 
         await sendTelegramMessage(botToken, chatId, confirmText, keyboard);
       } else if (data === 'confirm_yes') {
-        // Create or get patient
+        console.log(`[Callback] User confirmed booking`);
+        
+        // Create or update patient
         let { data: patient } = await supabase
           .from('patients')
           .select('*')
@@ -512,6 +588,17 @@ serve(async (req) => {
             .select()
             .single();
           patient = newPatient;
+        } else {
+          // Update patient info if changed
+          await supabase
+            .from('patients')
+            .update({
+              first_name: session.firstName || patient.first_name,
+              last_name: session.lastName || patient.last_name,
+              phone_number: session.phone || patient.phone_number,
+              language: lang,
+            })
+            .eq('id', patient.id);
         }
 
         if (patient && doctor) {
@@ -522,8 +609,8 @@ serve(async (req) => {
             .insert({
               doctor_id: doctor.id,
               patient_id: patient.id,
-              service_id: session.serviceId !== 'other' ? session.serviceId : null,
-              custom_reason: session.serviceId === 'other' ? session.serviceName : null,
+              service_id: session.serviceId && session.serviceId !== 'other' ? session.serviceId : null,
+              custom_reason: session.customReason || (session.serviceId === 'other' ? session.serviceName : null),
               start_date_time: startDateTime,
               duration_minutes: session.duration || 30,
               status: 'PENDING',
@@ -541,9 +628,10 @@ serve(async (req) => {
             // Notify doctor
             if (doctor.telegram_chat_id) {
               const doctorLang = doctor.interface_language || 'RU';
+              const serviceName = session.serviceName || session.customReason || 'Другое';
               const notifyText = doctorLang === 'RU'
-                ? `🔔 <b>Новая заявка!</b>\n\n👤 Пациент: ${patient.first_name} ${patient.last_name || ''}\n📱 Телефон: ${patient.phone_number || 'Не указан'}\n💼 Услуга: ${session.serviceName}\n📅 Дата: ${session.date}\n🕐 Время: ${session.time}\n⏱ Длительность: ${session.duration} мин`
-                : `🔔 <b>Новая заявка!</b>\n\n👤 Пациент: ${patient.first_name} ${patient.last_name || ''}\n📱 Телефон: ${patient.phone_number || 'Не указан'}\n💼 Услуга: ${session.serviceName}\n📅 Дата: ${session.date}\n🕐 Время: ${session.time}\n⏱ Длительность: ${session.duration} мин`;
+                ? `🔔 <b>Новая заявка!</b>\n\n👤 Пациент: ${patient.first_name} ${patient.last_name || ''}\n📱 Телефон: ${patient.phone_number || 'Не указан'}\n💼 Услуга: ${serviceName}\n📅 Дата: ${session.date}\n🕐 Время: ${session.time}\n⏱ Длительность: ${session.duration} мин`
+                : `🔔 <b>Nor haytararutyun!</b>\n\n👤 Hivand: ${patient.first_name} ${patient.last_name || ''}\n📱 Herakhos: ${patient.phone_number || 'Chnshatvats'}\n💼 Tsarrayutyun: ${serviceName}\n📅 Amsativ: ${session.date}\n🕐 Zham: ${session.time}\n⏱ Tevoghutyun: ${session.duration} rop`;
 
               const doctorKeyboard = {
                 inline_keyboard: [
@@ -644,11 +732,16 @@ serve(async (req) => {
       const message = update.message;
       const userId = message.from.id;
       const chatId = message.chat.id;
-      const text = message.text;
-      const session = userSessions.get(userId) || { step: 'choose_language' };
+      const text = message.text?.trim();
+      
+      console.log(`[Message] User ${userId}, text: "${text?.substring(0, 50)}"`);
 
-      if (text === '/start' || !session.language) {
-        session.step = 'choose_language';
+      // Handle /start command - always reset session
+      if (text === '/start') {
+        console.log(`[Message] /start command, resetting session for user ${userId}`);
+        userSessions.delete(userId);
+        
+        const session: UserSession = { step: 'choose_language' };
         userSessions.set(userId, session);
 
         const keyboard = {
@@ -671,15 +764,25 @@ serve(async (req) => {
         });
       }
 
+      // Get current session
+      const session = await getOrCreateSession(supabase, userId);
       const lang = session.language || 'RU';
       const t = translations[lang];
 
+      console.log(`[Message] Current session step: ${session.step}, language: ${lang}`);
+
+      // Handle based on current step
       if (session.step === 'enter_name' && text) {
-        const nameParts = text.trim().split(' ');
+        // User is entering their name
+        console.log(`[Message] Processing name input: "${text}"`);
+        
+        const nameParts = text.split(' ').filter(p => p.length > 0);
         session.firstName = nameParts[0];
         session.lastName = nameParts.slice(1).join(' ') || undefined;
         session.step = 'share_phone';
         userSessions.set(userId, session);
+
+        console.log(`[Message] Name parsed: ${session.firstName} ${session.lastName}, moving to share_phone`);
 
         const keyboard = {
           keyboard: [[{ text: t.sharePhoneButton, request_contact: true }]],
@@ -688,10 +791,45 @@ serve(async (req) => {
         };
 
         await sendTelegramMessage(botToken, chatId, t.sharePhone, keyboard);
-      } else if (message.contact) {
+        
+      } else if (session.step === 'share_phone' && message.contact) {
+        // User shared their phone number
+        console.log(`[Message] Phone received: ${message.contact.phone_number}`);
+        
         session.phone = message.contact.phone_number;
         session.step = 'choose_service';
         userSessions.set(userId, session);
+
+        // Save patient to database now
+        const { data: existingPatient } = await supabase
+          .from('patients')
+          .select('id')
+          .eq('telegram_user_id', userId)
+          .maybeSingle();
+
+        if (existingPatient) {
+          await supabase
+            .from('patients')
+            .update({
+              first_name: session.firstName || message.from.first_name,
+              last_name: session.lastName || message.from.last_name,
+              phone_number: session.phone,
+              language: lang,
+            })
+            .eq('id', existingPatient.id);
+        } else {
+          await supabase
+            .from('patients')
+            .insert({
+              telegram_user_id: userId,
+              first_name: session.firstName || message.from.first_name,
+              last_name: session.lastName || message.from.last_name,
+              phone_number: session.phone,
+              language: lang,
+            });
+        }
+
+        console.log(`[Message] Patient saved, moving to choose_service`);
 
         // Get services
         const { data: services } = await supabase
@@ -710,13 +848,16 @@ serve(async (req) => {
 
         const keyboard = { inline_keyboard: serviceButtons };
 
-        // Remove custom keyboard
+        // Remove custom keyboard and show services
         await sendTelegramMessage(botToken, chatId, t.chooseService, { 
           ...keyboard,
           remove_keyboard: true 
         });
-      } else if (session.step === 'choose_date' && session.serviceId === 'other' && text) {
-        // Custom reason entered - try LLM classification
+        
+      } else if (session.step === 'enter_custom_reason' && text) {
+        // User entered custom reason - try LLM classification
+        console.log(`[Message] Custom reason entered: "${text}"`);
+        
         session.customReason = text;
         
         // Get services for classification
@@ -736,13 +877,15 @@ serve(async (req) => {
 
         if (llmResult && llmResult.serviceId) {
           // LLM successfully classified the reason
-          console.log(`LLM classified custom reason to service: ${llmResult.serviceName}`);
+          console.log(`[Message] LLM classified to service: ${llmResult.serviceName}`);
           session.serviceId = llmResult.serviceId;
           session.serviceName = `${llmResult.serviceName} (AI)`;
           session.duration = llmResult.duration;
+          session.step = 'choose_date';
+          userSessions.set(userId, session);
           
           // Proceed to date selection
-          const dates = getAvailableDates();
+          const dates = getAvailableDates(doctor.work_days as string[] | undefined);
           const keyboard = {
             inline_keyboard: dates.map(date => [{
               text: formatDateForDisplay(date, lang),
@@ -758,7 +901,7 @@ serve(async (req) => {
           await sendTelegramMessage(botToken, chatId, t.chooseDate, keyboard);
         } else {
           // Fallback: Ask patient to choose service manually
-          console.log("LLM classification failed or disabled, falling back to manual selection");
+          console.log("[Message] LLM classification failed or disabled, falling back to manual selection");
           session.serviceName = text;
           session.duration = 30;
           
@@ -783,6 +926,55 @@ serve(async (req) => {
         }
         
         userSessions.set(userId, session);
+        
+      } else if (session.step === 'choose_service' && text) {
+        // User sent text instead of clicking service button - treat as returning user trying to book
+        console.log(`[Message] Unexpected text at choose_service step, prompting service selection`);
+        
+        // Get services
+        const { data: services } = await supabase
+          .from('services')
+          .select('*')
+          .eq('doctor_id', doctor.id)
+          .eq('is_active', true)
+          .order('sort_order');
+
+        const serviceButtons = (services || []).map(s => [{
+          text: lang === 'ARM' ? s.name_arm : s.name_ru,
+          callback_data: `service_${s.id}`,
+        }]);
+
+        serviceButtons.push([{ text: t.otherService, callback_data: 'service_other' }]);
+
+        const keyboard = { inline_keyboard: serviceButtons };
+
+        await sendTelegramMessage(botToken, chatId, t.chooseService, keyboard);
+        
+      } else if (!session.language) {
+        // No language set and not /start - show language selection
+        console.log(`[Message] No language set, showing language selection`);
+        
+        session.step = 'choose_language';
+        userSessions.set(userId, session);
+
+        const keyboard = {
+          inline_keyboard: [
+            [
+              { text: '🇦🇲 Hayeren', callback_data: 'lang_arm' },
+              { text: '🇷🇺 Русский', callback_data: 'lang_ru' },
+            ],
+          ],
+        };
+
+        await sendTelegramMessage(
+          botToken,
+          chatId,
+          `${translations.RU.welcome}\n${translations.ARM.welcome}`,
+          keyboard
+        );
+      } else {
+        // Unknown state or waiting for button click
+        console.log(`[Message] Unhandled message at step ${session.step}`);
       }
     }
 
