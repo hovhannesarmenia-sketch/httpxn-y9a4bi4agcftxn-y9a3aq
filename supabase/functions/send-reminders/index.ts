@@ -20,7 +20,9 @@ const translations = {
 };
 
 async function sendTelegramMessage(botToken: string, chatId: number, text: string) {
-  const url = `${TELEGRAM_API}${botToken}/sendMessage`;
+  // Remove "bot" prefix if user accidentally included it
+  const cleanToken = botToken.replace(/^bot/i, '');
+  const url = `${TELEGRAM_API}${cleanToken}/sendMessage`;
   const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

@@ -121,7 +121,9 @@ async function sendTelegramMessage(
   text: string, 
   replyMarkup?: object
 ) {
-  const url = `${TELEGRAM_API}${botToken}/sendMessage`;
+  // Remove "bot" prefix if user accidentally included it
+  const cleanToken = botToken.replace(/^bot/i, '');
+  const url = `${TELEGRAM_API}${cleanToken}/sendMessage`;
   const body: Record<string, unknown> = {
     chat_id: chatId,
     text,
@@ -145,7 +147,9 @@ async function sendTelegramMessage(
 }
 
 async function answerCallbackQuery(botToken: string, callbackQueryId: string, text?: string) {
-  const url = `${TELEGRAM_API}${botToken}/answerCallbackQuery`;
+  // Remove "bot" prefix if user accidentally included it
+  const cleanToken = botToken.replace(/^bot/i, '');
+  const url = `${TELEGRAM_API}${cleanToken}/answerCallbackQuery`;
   await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
