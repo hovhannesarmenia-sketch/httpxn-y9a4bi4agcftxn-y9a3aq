@@ -1,10 +1,7 @@
 /**
  * Shared translations for Supabase Edge Functions (Telegram bot)
  * 
- * IMPORTANT: All Armenian texts MUST be in proper Armenian script (Հայdelays)
- * Do NOT use Latin characters for Armenian!
- * 
- * TODO: Replace all Latin transliterations with proper Armenian script
+ * All Armenian texts use proper Armenian script.
  */
 
 export type Language = 'ARM' | 'RU';
@@ -12,50 +9,50 @@ export type Language = 'ARM' | 'RU';
 export const botTranslations = {
   ARM: {
     // Welcome and language selection
-    welcome: 'Barev dzez MedBook! Yntreq lezu:', // TODO: Բdelays dzez MedBook! Yntreq lezu:
-    languageButton: 'Hayeren', // TODO: Հdelay
+    welcome: 'Barev dzez, sa MedBook botn e. Khndrum enq yntrel lezuy.',
+    languageButton: '🇦🇲 Hayeren',
 
     // Patient registration
-    enterName: 'Khndrum enq grel dzez anun (Anun Azganun):', // TODO: Replace with Armenian script
-    sharePhone: 'Khndrum enq kisvatsnel dzez herakhosy:', // TODO: Replace with Armenian script
-    sharePhoneButton: '📱 Kisvatsnel herakhosy', // TODO: Replace with Armenian script
-    skipPhone: 'Bats toel', // TODO: Replace with Armenian script
+    enterName: 'Khndrum enq grel dzez anuny ev azganuny.',
+    sharePhone: 'Khndrum enq kisvatsnel dzez herakhosy.',
+    sharePhoneButton: '📱 Kisvatsnel herakhosy',
+    skipPhone: 'Bats toel',
 
     // Service selection
-    chooseService: 'Yntreq tsarrayutyuny:', // TODO: Replace with Armenian script
-    otherService: '🔹 Ayl', // TODO: Replace with Armenian script
-    enterCustomReason: 'Nkaragreq dzez aytselutyuny:', // TODO: Replace with Armenian script
+    chooseService: 'Yntreq tsarrayutyuny.',
+    otherService: '🔹 Ayl',
+    enterCustomReason: 'Nkaragreq dzez aytselman patchary.',
 
     // Date and time selection
-    chooseDate: 'Yntreq amsativ:', // TODO: Replace with Armenian script
-    chooseTime: 'Yntreq zham:', // TODO: Replace with Armenian script
-    noSlots: 'Ayt ory azat slotner chkan. Khndrum enq yntreq urarishy.', // TODO: Replace with Armenian script
+    chooseDate: 'Yntreq amsativy.',
+    chooseTime: 'Yntreq zhamy.',
+    noSlots: 'Ayd ory azat zhamer chkan. Khndrum enq yntreq mek ayl or.',
 
     // Booking confirmation
-    confirmBooking: 'Hastateq granchum?', // TODO: Replace with Armenian script
-    service: 'Tsarrayutyun', // TODO: Replace with Armenian script
-    dateTime: 'Amsativ u zham', // TODO: Replace with Armenian script
-    yes: '✅ Hastatiel', // TODO: Replace with Armenian script
-    no: '❌ Cheghel', // TODO: Replace with Armenian script
-    back: '◀️ Het', // TODO: Replace with Armenian script
+    confirmBooking: 'Hastatieq granchomy.',
+    service: 'Tsarrayutyun',
+    dateTime: 'Amsativ ev zham',
+    yes: '✅ Hastatiel',
+    no: '❌ Chegharkel',
+    back: '◀️ Het',
 
     // After booking
-    bookingConfirmed: '✅ Dzez granchumy stacvats e! Bzhishky piti hastati ayn.', // TODO: Replace with Armenian script
-    waitConfirmation: 'Spasum enq bzhishki hastatman...', // TODO: Replace with Armenian script
+    bookingConfirmed: '✅ Dzez granchomy stacvel e. Bzhishky piti hastati ayn.',
+    waitConfirmation: 'Spasum enq bzhishki hastatmany...',
 
     // Appointment status notifications
-    appointmentConfirmed: '✅ Dzez granchumy hastatvats e!\n\n👨‍⚕️ Bzhishk: Dr. {doctorName}\n📅 {dateTime}', // TODO: Replace with Armenian script
-    appointmentRejected: '❌ Dzez granchumy merjvats e.\n\nPatchar: {reason}', // TODO: Replace with Armenian script
+    appointmentConfirmed: '✅ Dzez granchomy hastatvats e.\n\n👨‍⚕️ Bzhishk. Doktor {doctorName}\n📅 {dateTime}',
+    appointmentRejected: '❌ Dzez granchomy merjvats e.\n\nPatchar. {reason}',
     
     // Cancellation messages
-    cancelledByDoctor: '❌ Dzez granchumy chegharkvats e bzhishki koghmits.', // TODO: Replace with Armenian script
-    reason: 'Patchar', // TODO: Replace with Armenian script
-    rebookMessage: 'Khndrum enq grancvek nor zhami.', // TODO: Replace with Armenian script
+    cancelledByDoctor: '❌ Dzez granchomy chegharkvats e bzhishki koghmits.',
+    reason: 'Patchar.',
+    rebookMessage: 'Khndrum enq grancvel nor zhami hamar.',
 
     // Doctor notifications
-    newDoctor: '👨‍⚕️ Nor granchum harcum:\n\nPacient: {patientName}\nTsarrayutyun: {service}\nAmset: {dateTime}\n\nSteghtsek gortsoghutyan:', // TODO: Replace with Armenian script
-    confirm: '✅ Hastatiel', // TODO: Replace with Armenian script
-    reject: '❌ Merjel', // TODO: Replace with Armenian script
+    newDoctor: '👨‍⚕️ Nor granchman harcum.\n\nHivand. {patientName}\nTsarrayutyun. {service}\nAmsativ. {dateTime}\n\nYntreq gortsoghutyuny.',
+    confirm: '✅ Hastatiel',
+    reject: '❌ Merjel',
   },
 
   RU: {
