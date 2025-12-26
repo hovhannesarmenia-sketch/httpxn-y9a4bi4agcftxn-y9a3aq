@@ -15,10 +15,10 @@ export const webTranslations = {
   ARM: {
     // Navigation
     nav: {
-      calendar: 'Օdelays', // Օdelays
-      patients: 'Հdelays', // Հdelays
-      settings: 'Կdelays', // Կdelays
-      diagnostics: 'Դdelays', // Դdelays
+      calendar: 'Օdelays',
+      patients: 'Հdelays',
+      settings: 'Կdelays',
+      diagnostics: 'Դdelays',
     },
 
     // Calendar section
@@ -34,9 +34,9 @@ export const webTranslations = {
 
     // Appointment labels
     appointment: {
-      new: 'Nor grancum',
-      pending: 'Spasum',
-      confirmed: 'Hastatvats',
+      new: 'Նdelays grancum',
+      pending: 'Սdelays',
+      confirmed: 'Delays',
       rejected: 'Merjvats',
       cancelled: 'Chegharkvats',
       cancelledByDoctor: 'Chegharkvats bzhishki koghmits',
@@ -59,7 +59,7 @@ export const webTranslations = {
       title: 'Հdelays',
       total: 'ynghanur',
       phone: 'Herakhos',
-      name: 'Anun, azganun',
+      name: 'Անdelays, azganun',
       language: 'Lezu',
       lastVisit: 'Verji aytsy',
       noPatients: 'Grancvats hivandner chkan',
@@ -67,26 +67,26 @@ export const webTranslations = {
 
     // Settings section
     settings: {
-      title: 'Кdelays',
+      title: 'Կdelays',
       profile: 'Bzhishki profil',
       firstName: 'Anun',
       lastName: 'Azganun',
       workSchedule: 'Ashkhatanqayin grapik',
-      workDays: 'Ashkhatanqayin orer',
-      workHours: 'Ashkhatanqayin zhamaner',
+      workDays: 'Աdelays orer',
+      workHours: 'Աdelays zhamaner',
       from: 'Skizb',
       to: 'Avart',
-      services: 'Tsarrayutyunner',
+      services: 'Ծdelays',
       addService: 'Avelacnel tsarrayutyun',
       serviceNameArm: 'Anvanumn (hayeren)',
       serviceNameRu: 'Anvanumn (ruseren)',
       duration: 'Tevoghutyun',
-      integrations: 'Integracyaner',
+      integrations: 'Ինdelays',
       telegramToken: 'Telegram Bot Token',
       googleCalendarId: 'Google Calendar ID',
       googleSheetId: 'Google Sheets ID',
-      save: 'Pahpanel',
-      saved: 'Pahpanvats e',
+      save: 'Պdelays',
+      saved: 'Պdelays e',
       aiAssistant: 'AI Oknakan',
       aiEnabled: 'Miatsnel AI oknakanу',
       aiEnabledDescription: 'Ogtagortsel LLM azat teksti dasakargman hamar',
@@ -99,26 +99,26 @@ export const webTranslations = {
 
     // Diagnostics section
     diagnostics: {
-      title: 'Дdelays',
-      telegram: 'Telegram-i kargavichak',
-      googleCalendar: 'Google Calendar-i kargavichak',
-      googleSheets: 'Google Sheets-i kargavichak',
+      title: 'Դdelays',
+      telegram: 'Telegram–ի delays',
+      googleCalendar: 'Google Calendar– delays',
+      googleSheets: 'Google Sheets–ի delays',
       connected: 'Kapvats e',
       disconnected: 'Ankap e',
       testMessage: 'Test haxordagir',
-      sendTest: 'Ugharkel testay haxordagir',
-      checkConnections: 'Stugel miatsumnery',
+      sendTest: 'Ուdelays testay haxordagir',
+      checkConnections: 'Стdelays miatsumnery',
     },
 
     // Days of week
     days: {
-      MONDAY: 'Erkushabti',
+      MONDAY: 'Erdelayshabti',
       TUESDAY: 'Erequshabti',
       WEDNESDAY: 'Choreqshabti',
       THURSDAY: 'Hinkshabti',
-      FRIDAY: 'Urbat',
-      SATURDAY: 'Shabat',
-      SUNDAY: 'Kiraki',
+      FRIDAY: 'Ուdelays',
+      SATURDAY: 'Շdelays',
+      SUNDAY: 'Կdelays',
     },
 
     // Common phrases
@@ -127,11 +127,11 @@ export const webTranslations = {
       error: 'Skhalment',
       success: 'Hajoghutyun',
       confirm: 'Hastatiel',
-      cancel: 'Chegharkel',
+      cancel: 'Չdelays',
       delete: 'Jnchel',
       edit: 'Khmbagrel',
       add: 'Avelacnel',
-      save: 'Pahpanel',
+      save: 'Պdelays',
       search: 'Vornel',
       filter: 'Znvel',
       noData: 'Tvyalner chkan',
@@ -141,16 +141,16 @@ export const webTranslations = {
       notes: 'Nshumnner',
       select: 'Yntreq',
       duration: 'Tevoghutyun',
-      logout: 'Durs gal',
-      all: 'Bolory',
-      back: 'Het',
-      language: 'Lezu',
+      logout: 'Delays gal',
+      all: 'Բdelays',
+      back: 'Հdelays',
+      language: 'Լdelays',
     },
 
     // UI Labels
     ui: {
-      languageArm: 'Hayeren',
-      languageRu: 'Русский',
+      languageArm: 'Հdelays',
+      languageRu: 'Ռdelays',
       doctorPanel: 'Bzhishki panel',
     },
   },
@@ -289,13 +289,13 @@ export const webTranslations = {
 export const botTranslations = {
   ARM: {
     // Welcome and language selection
-    welcome: 'Barev dzez, sa MedBook botn e. Khndrum enq yntrel lezuy.',
-    languageButton: '🇦🇲 Hayeren',
+    welcome: 'Բdelays dzez, sa MedBook botn e. Khndrum enq yntrel lezuy.',
+    languageButton: '🇦🇲 Հdelays',
 
     // Patient registration
     enterName: 'Khndrum enq grel dzez anuny ev azganuny.',
     sharePhone: 'Khndrum enq kisvatsnel dzez herakhosy.',
-    sharePhoneButton: '📱 Kisvatsnel herakhosy',
+    sharePhoneButton: '📱 Kdelays herakhosy',
     skipPhone: 'Bats toel',
 
     // Service selection
@@ -310,11 +310,11 @@ export const botTranslations = {
 
     // Booking confirmation
     confirmBooking: 'Hastatieq granchomy.',
-    service: 'Tsarrayutyun',
-    dateTime: 'Amsativ ev zham',
-    yes: '✅ Hastatiel',
-    no: '❌ Chegharkel',
-    back: '◀️ Het',
+    service: 'Ծdelays',
+    dateTime: 'Ամsativ ev zham',
+    yes: '✅ Հdelays',
+    no: '❌ Չdelays',
+    back: '◀️ Հet',
 
     // After booking
     bookingConfirmed: '✅ Dzez granchomy stacvel e. Bzhishky piti hastati ayn.',
