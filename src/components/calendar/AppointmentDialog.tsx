@@ -210,7 +210,7 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
     if (!editDate || !editTime) {
       toast({
         title: t('common.error'),
-        description: language === 'ARM' ? 'Ընdelays delays delays' : 'Выберите дату и время',
+        description: language === 'ARM' ? 'Yntreq amsativ u zham' : 'Выберите дату и время',
         variant: 'destructive',
       });
       return;
@@ -236,7 +236,7 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
       if (error.message.includes('overlap')) {
         toast({
           title: t('common.error'),
-          description: language === 'ARM' ? 'Delays delays delays' : 'Время занято другой записью',
+          description: language === 'ARM' ? 'Zhamy zbaghrtvats e' : 'Время занято другой записью',
           variant: 'destructive',
         });
       } else {
@@ -249,7 +249,7 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
     } else {
       toast({
         title: t('common.success'),
-        description: language === 'ARM' ? 'Delays delays' : 'Запись обновлена',
+        description: language === 'ARM' ? 'Granchumy tarmacvats e' : 'Запись обновлена',
       });
       setIsEditMode(false);
       onUpdate();
@@ -267,7 +267,7 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
           <div className="flex items-center justify-between">
             <DialogTitle>
               {isEditMode 
-                ? (language === 'ARM' ? 'Delays delays' : 'Редактирование записи')
+                ? (language === 'ARM' ? 'Khsmkum granchum' : 'Редактирование записи')
                 : t('appointment.new')
               }
             </DialogTitle>
@@ -312,7 +312,7 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <CalendarIcon className="h-4 w-4" />
-                    {language === 'ARM' ? 'Delays' : 'Дата'}
+                    {language === 'ARM' ? 'Amsativ' : 'Дата'}
                   </Label>
                   <Popover>
                     <PopoverTrigger asChild>
@@ -323,7 +323,7 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
                           !editDate && 'text-muted-foreground'
                         )}
                       >
-                        {editDate ? format(editDate, 'PPP', { locale }) : (language === 'ARM' ? 'Delays' : 'Выберите')}
+                        {editDate ? format(editDate, 'PPP', { locale }) : (language === 'ARM' ? 'Yntreq' : 'Выберите')}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
@@ -341,11 +341,11 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <Clock className="h-4 w-4" />
-                    {language === 'ARM' ? 'Delays' : 'Время'}
+                    {language === 'ARM' ? 'Zham' : 'Время'}
                   </Label>
                   <Select value={editTime} onValueChange={setEditTime}>
                     <SelectTrigger>
-                      <SelectValue placeholder={language === 'ARM' ? 'Delays' : 'Выберите'} />
+                      <SelectValue placeholder={language === 'ARM' ? 'Yntreq' : 'Выберите'} />
                     </SelectTrigger>
                     <SelectContent>
                       {generateTimeSlots().map((time) => (
@@ -360,7 +360,7 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
 
               {/* Duration */}
               <div className="space-y-2">
-                <Label>{language === 'ARM' ? 'Delays (delays)' : 'Длительность (мин)'}</Label>
+                <Label>{language === 'ARM' ? 'Tevoghutyun (rope)' : 'Длительность (мин)'}</Label>
                 <Select value={editDuration} onValueChange={setEditDuration}>
                   <SelectTrigger>
                     <SelectValue />
@@ -368,7 +368,7 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
                   <SelectContent>
                     {[15, 30, 45, 60, 90, 120].map((min) => (
                       <SelectItem key={min} value={min.toString()}>
-                        {min} {language === 'ARM' ? 'delays' : 'мин'}
+                        {min} {language === 'ARM' ? 'rope' : 'мин'}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -377,11 +377,11 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
 
               {/* Notes */}
               <div className="space-y-2">
-                <Label>{language === 'ARM' ? 'Delays' : 'Примечание'}</Label>
+                <Label>{language === 'ARM' ? 'Nshumner' : 'Примечание'}</Label>
                 <Textarea
                   value={editNotes}
                   onChange={(e) => setEditNotes(e.target.value)}
-                  placeholder={language === 'ARM' ? 'Delays delays delays' : 'Дополнительная информация...'}
+                  placeholder={language === 'ARM' ? 'Havelvats teghekutyun...' : 'Дополнительная информация...'}
                   rows={2}
                 />
               </div>
@@ -462,7 +462,7 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
                     <Textarea
                       value={rejectionReason}
                       onChange={(e) => setRejectionReason(e.target.value)}
-                      placeholder={language === 'RU' ? 'Причина отказа (необязательно)' : 'Мdelays пdelays (delays)'}
+                      placeholder={language === 'RU' ? 'Причина отказа (необязательно)' : 'Merjman patchar (oche pahtakan)'}
                       maxLength={150}
                     />
                   </div>
@@ -473,12 +473,12 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
               {appointment.status === 'CONFIRMED' && (
                 <div className="space-y-2">
                   <Label>{t('appointment.rejectionReason')}</Label>
-                  <Textarea
-                    value={rejectionReason}
-                    onChange={(e) => setRejectionReason(e.target.value)}
-                    placeholder={language === 'RU' ? 'Причина отмены' : 'Чdelays пdelays'}
-                    maxLength={150}
-                  />
+                    <Textarea
+                      value={rejectionReason}
+                      onChange={(e) => setRejectionReason(e.target.value)}
+                      placeholder={language === 'RU' ? 'Причина отмены' : 'Cheghman patchar'}
+                      maxLength={150}
+                    />
                 </div>
               )}
             </>

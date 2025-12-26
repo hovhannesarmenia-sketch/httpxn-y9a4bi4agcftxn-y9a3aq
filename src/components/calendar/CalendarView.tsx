@@ -231,7 +231,7 @@ export function CalendarView() {
               className="gap-1"
             >
               <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">{language === 'ARM' ? 'Նdelays' : 'Новая'}</span>
+              <span className="hidden sm:inline">{language === 'ARM' ? 'Nor' : 'Новая'}</span>
             </Button>
           </div>
         </CardHeader>
