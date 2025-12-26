@@ -8,27 +8,38 @@ const corsHeaders = {
 
 const TELEGRAM_API = "https://api.telegram.org/bot";
 
-interface TelegramMessage {
-  message_id: number;
-  from: {
-    id: number;
-    first_name: string;
-    last_name?: string;
-  };
-  chat: {
-    id: number;
-  };
-  text?: string;
-  contact?: {
-    phone_number: string;
-    first_name: string;
-    last_name?: string;
-  };
+// Steps in the booking flow
+type BookingStep = 
+  | 'awaiting_language'
+  | 'awaiting_name'
+  | 'awaiting_phone'
+  | 'awaiting_service'
+  | 'awaiting_date'
+  | 'awaiting_time'
+  | 'awaiting_confirmation'
+  | 'idle';
+
+interface TelegramSession {
+  telegram_user_id: number;
+  step: BookingStep;
+  language: 'ARM' | 'RU' | null;
+  patient_id: string | null;
+  service_id: string | null;
+  selected_date: string | null;
+  selected_time: string | null;
+  duration_minutes: number | null;
+  custom_reason: string | null;
 }
 
 interface TelegramUpdate {
   update_id: number;
-  message?: TelegramMessage;
+  message?: {
+    message_id: number;
+    from: { id: number; first_name: string; last_name?: string };
+    chat: { id: number };
+    text?: string;
+    contact?: { phone_number: string; first_name: string; last_name?: string };
+  };
   callback_query?: {
     id: string;
     from: { id: number; first_name: string; last_name?: string };
@@ -37,42 +48,13 @@ interface TelegramUpdate {
   };
 }
 
-interface UserSession {
-  step: 'choose_language' | 'enter_name' | 'share_phone' | 'choose_service' | 'choose_date' | 'choose_time' | 'confirm' | 'enter_custom_reason';
-  language?: 'ARM' | 'RU';
-  firstName?: string;
-  lastName?: string;
-  phone?: string;
-  serviceId?: string;
-  serviceName?: string;
-  customReason?: string;
-  date?: string;
-  time?: string;
-  duration?: number;
-}
-
-interface LLMClassificationResult {
-  service_id: string;
-  duration_minutes: number;
-  confidence: number;
-}
-
-interface ServiceInfo {
-  id: string;
-  name_arm: string;
-  name_ru: string;
-  default_duration_minutes: number;
-}
-
-// In-memory session store (cleared on function cold start)
-const userSessions = new Map<number, UserSession>();
-
 const translations = {
   ARM: {
     welcome: "Barev dzez MedBook! Yntreq lezu:",
     enterName: "Khndrum enq grel dzez anun (Anun Azganun):",
     sharePhone: "Khndrum enq kisvatsnel dzez herakhosy:",
     sharePhoneButton: "📱 Kisvatsnel herakhosy",
+    skipPhone: "Bats toel",
     chooseService: "Yntreq tsarrayutyuny:",
     otherService: "🔹 Ayl",
     enterCustomReason: "Nkaragreq dzez aytselutyuny:",
@@ -80,7 +62,6 @@ const translations = {
     chooseTime: "Yntreq zham:",
     confirmBooking: "Hastateq granchum?",
     bookingConfirmed: "✅ Dzez granchumy stacvats e! Bzhishky piti hastati ayn.",
-    bookingDetails: "📋 Granchumi manramasnutyunner:",
     service: "Tsarrayutyun",
     dateTime: "Amsativ u zham",
     waitConfirmation: "Spasum enq bzhishki hastatman...",
@@ -90,12 +71,16 @@ const translations = {
     yes: "✅ Hastatiel",
     no: "❌ Cheghel",
     back: "◀️ Het",
+    newDoctor: "👨‍⚕️ Nor granchum harcum:\n\nPacient: {patientName}\nTsarrayutyun: {service}\nAmset: {dateTime}\n\nSteghtsek gortsoghutyan:",
+    confirm: "✅ Hastatiel",
+    reject: "❌ Merjel",
   },
   RU: {
     welcome: "Добро пожаловать в MedBook! Выберите язык:",
     enterName: "Пожалуйста, введите ваше имя (Имя Фамилия):",
     sharePhone: "Пожалуйста, поделитесь вашим номером телефона:",
     sharePhoneButton: "📱 Поделиться номером",
+    skipPhone: "Пропустить",
     chooseService: "Выберите услугу:",
     otherService: "🔹 Другое",
     enterCustomReason: "Опишите причину вашего визита:",
@@ -103,7 +88,6 @@ const translations = {
     chooseTime: "Выберите время:",
     confirmBooking: "Подтвердить запись?",
     bookingConfirmed: "✅ Ваша заявка отправлена! Врач должен подтвердить её.",
-    bookingDetails: "📋 Детали записи:",
     service: "Услуга",
     dateTime: "Дата и время",
     waitConfirmation: "Ожидаем подтверждения врача...",
@@ -113,51 +97,42 @@ const translations = {
     yes: "✅ Подтвердить",
     no: "❌ Отмена",
     back: "◀️ Назад",
+    newDoctor: "👨‍⚕️ Новая запись:\n\nПациент: {patientName}\nУслуга: {service}\nДата: {dateTime}\n\nВыберите действие:",
+    confirm: "✅ Подтвердить",
+    reject: "❌ Отклонить",
   },
 };
 
+// ============ HELPERS ============
+
 async function sendTelegramMessage(
-  botToken: string, 
-  chatId: number, 
-  text: string, 
+  botToken: string,
+  chatId: number,
+  text: string,
   replyMarkup?: object
 ) {
-  // Remove "bot" prefix if user accidentally included it
   const cleanToken = botToken.replace(/^bot/i, '');
   const url = `${TELEGRAM_API}${cleanToken}/sendMessage`;
-  const body: Record<string, unknown> = {
-    chat_id: chatId,
-    text,
-    parse_mode: "HTML",
-  };
-  if (replyMarkup) {
-    body.reply_markup = replyMarkup;
-  }
+  const body: Record<string, unknown> = { chat_id: chatId, text, parse_mode: "HTML" };
+  if (replyMarkup) body.reply_markup = replyMarkup;
 
-  console.log("Sending telegram message:", { chatId, text: text.substring(0, 50) });
-
+  console.log("[TG] Sending:", { chatId, text: text.substring(0, 60) });
   const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-
   const data = await response.json();
-  console.log("Telegram response:", data);
+  console.log("[TG] Response:", data);
   return data;
 }
 
 async function answerCallbackQuery(botToken: string, callbackQueryId: string, text?: string) {
-  // Remove "bot" prefix if user accidentally included it
   const cleanToken = botToken.replace(/^bot/i, '');
-  const url = `${TELEGRAM_API}${cleanToken}/answerCallbackQuery`;
-  await fetch(url, {
+  await fetch(`${TELEGRAM_API}${cleanToken}/answerCallbackQuery`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      callback_query_id: callbackQueryId,
-      text,
-    }),
+    body: JSON.stringify({ callback_query_id: callbackQueryId, text }),
   });
 }
 
@@ -165,26 +140,14 @@ function getAvailableDates(workDays?: string[]): string[] {
   const dates: string[] = [];
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-
-  // Map day names to JS day numbers (0 = Sunday, 1 = Monday, etc.)
   const dayNameToNumber: Record<string, number> = {
-    SUNDAY: 0,
-    MONDAY: 1,
-    TUESDAY: 2,
-    WEDNESDAY: 3,
-    THURSDAY: 4,
-    FRIDAY: 5,
-    SATURDAY: 6,
+    SUNDAY: 0, MONDAY: 1, TUESDAY: 2, WEDNESDAY: 3, THURSDAY: 4, FRIDAY: 5, SATURDAY: 6,
   };
-
   const validDays = new Set(workDays?.map(d => dayNameToNumber[d]) || [1, 2, 3, 4, 5]);
-
   for (let i = 1; i <= 21; i++) {
     const date = new Date(today);
     date.setDate(date.getDate() + i);
-    const dayOfWeek = date.getDay();
-    
-    if (validDays.has(dayOfWeek)) {
+    if (validDays.has(date.getDay())) {
       dates.push(date.toISOString().split('T')[0]);
       if (dates.length >= 14) break;
     }
@@ -195,179 +158,75 @@ function getAvailableDates(workDays?: string[]): string[] {
 function formatDateForDisplay(dateStr: string, lang: 'ARM' | 'RU'): string {
   const date = new Date(dateStr + 'T00:00:00');
   const locale = lang === 'ARM' ? 'hy-AM' : 'ru-RU';
-  return date.toLocaleDateString(locale, { 
-    weekday: 'short', 
-    day: 'numeric', 
-    month: 'short' 
-  });
+  return date.toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
-// LLM Classification for free-text custom reasons (optional)
-async function classifyWithLLM(
-  customReason: string,
-  services: ServiceInfo[],
-  doctor: { ai_enabled?: boolean; llm_api_base_url?: string; llm_api_key?: string; llm_model_name?: string },
-  lang: 'ARM' | 'RU'
-): Promise<{ serviceId: string | null; duration: number; serviceName: string } | null> {
-  // Check if AI is enabled and configured
-  if (!doctor.ai_enabled || !doctor.llm_api_key || !doctor.llm_api_base_url) {
-    console.log("AI assistant is disabled or not configured, skipping LLM classification");
-    return null;
-  }
+// ============ SESSION PERSISTENCE ============
 
-  try {
-    const serviceList = services.map(s => ({
-      id: s.id,
-      name: lang === 'ARM' ? s.name_arm : s.name_ru,
-      duration_minutes: s.default_duration_minutes
-    }));
-
-    const prompt = `You are a medical appointment assistant. A patient has described their problem in free text. Based on this description, classify which medical service they need.
-
-Patient's description: "${customReason}"
-
-Available services:
-${serviceList.map(s => `- ID: ${s.id}, Name: "${s.name}", Typical duration: ${s.duration_minutes} minutes`).join('\n')}
-
-Instructions:
-1. Analyze the patient's description
-2. Choose the most appropriate service_id from the list above
-3. Suggest a duration_minutes (must be one of: 30, 60, or 90)
-4. Provide a confidence score from 0 to 1 indicating how certain you are about the match
-
-Return ONLY a valid JSON object with this exact format:
-{"service_id": "uuid-here", "duration_minutes": 30, "confidence": 0.85}
-
-If no service matches well, set confidence below 0.5.`;
-
-    const modelName = doctor.llm_model_name || 'deepseek-chat';
-    const apiUrl = doctor.llm_api_base_url.endsWith('/') 
-      ? `${doctor.llm_api_base_url}chat/completions` 
-      : `${doctor.llm_api_base_url}/chat/completions`;
-
-    console.log(`Calling LLM API: ${apiUrl} with model: ${modelName}`);
-
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${doctor.llm_api_key}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: modelName,
-        messages: [
-          { role: 'system', content: 'You are a medical appointment classification assistant. Always respond with valid JSON only.' },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.3,
-        max_tokens: 200,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`LLM API error (${response.status}):`, errorText);
-      return null;
-    }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content?.trim();
-
-    if (!content) {
-      console.error("LLM returned empty content");
-      return null;
-    }
-
-    console.log("LLM response content:", content);
-
-    // Parse JSON from response (handle potential markdown code blocks)
-    let jsonStr = content;
-    if (content.includes('```')) {
-      const match = content.match(/```(?:json)?\s*([\s\S]*?)```/);
-      jsonStr = match ? match[1].trim() : content;
-    }
-
-    const result: LLMClassificationResult = JSON.parse(jsonStr);
-
-    console.log("Parsed LLM result:", result);
-
-    // Validate result
-    if (!result.service_id || typeof result.confidence !== 'number') {
-      console.error("Invalid LLM result format");
-      return null;
-    }
-
-    // Check confidence threshold
-    if (result.confidence < 0.7) {
-      console.log(`Low confidence (${result.confidence}), falling back to manual selection`);
-      return null;
-    }
-
-    // Validate service_id exists
-    const matchedService = services.find(s => s.id === result.service_id);
-    if (!matchedService) {
-      console.error(`Service ID ${result.service_id} not found in available services`);
-      return null;
-    }
-
-    // Validate duration
-    const validDurations = [30, 60, 90];
-    const duration = validDurations.includes(result.duration_minutes) 
-      ? result.duration_minutes 
-      : matchedService.default_duration_minutes;
-
-    return {
-      serviceId: result.service_id,
-      duration,
-      serviceName: lang === 'ARM' ? matchedService.name_arm : matchedService.name_ru
-    };
-
-  } catch (error) {
-    console.error("LLM classification error:", error);
-    return null;
-  }
-}
-
-// Helper to get or load patient session from database
-async function getOrCreateSession(
-  supabase: any,
-  telegramUserId: number
-): Promise<UserSession> {
-  // First check in-memory cache
-  const cached = userSessions.get(telegramUserId);
-  if (cached) {
-    console.log(`[Session] Found in-memory session for user ${telegramUserId}, step: ${cached.step}`);
-    return cached;
-  }
-
-  // Check if patient exists in database (they have already completed initial flow)
-  const { data: patient } = await supabase
-    .from('patients')
+async function getSession(supabase: any, telegramUserId: number): Promise<TelegramSession> {
+  const { data } = await supabase
+    .from('telegram_sessions')
     .select('*')
     .eq('telegram_user_id', telegramUserId)
     .maybeSingle();
 
+  if (data) {
+    console.log(`[Session] Found persisted session for ${telegramUserId}, step=${data.step}`);
+    return data as TelegramSession;
+  }
+
+  // Check if patient already exists (returning patient)
+  const { data: patient } = await supabase
+    .from('patients')
+    .select('id, language, first_name, last_name, phone_number')
+    .eq('telegram_user_id', telegramUserId)
+    .maybeSingle();
+
   if (patient) {
-    // Returning patient - skip to service selection
-    console.log(`[Session] Found existing patient ${telegramUserId}, creating session at choose_service`);
-    const patientData = patient as { language?: string; first_name?: string; last_name?: string; phone_number?: string };
-    const session: UserSession = {
-      step: 'choose_service',
-      language: (patientData.language === 'ARM' ? 'ARM' : 'RU') as 'ARM' | 'RU',
-      firstName: patientData.first_name,
-      lastName: patientData.last_name || undefined,
-      phone: patientData.phone_number || undefined,
+    console.log(`[Session] Returning patient ${telegramUserId}, creating session at awaiting_service`);
+    const session: TelegramSession = {
+      telegram_user_id: telegramUserId,
+      step: 'awaiting_service',
+      language: patient.language || 'RU',
+      patient_id: patient.id,
+      service_id: null,
+      selected_date: null,
+      selected_time: null,
+      duration_minutes: null,
+      custom_reason: null,
     };
-    userSessions.set(telegramUserId, session);
+    await supabase.from('telegram_sessions').upsert(session);
     return session;
   }
 
-  // New user - start fresh
-  console.log(`[Session] New user ${telegramUserId}, starting at choose_language`);
-  const session: UserSession = { step: 'choose_language' };
-  userSessions.set(telegramUserId, session);
+  // New user
+  console.log(`[Session] New user ${telegramUserId}, creating session at awaiting_language`);
+  const session: TelegramSession = {
+    telegram_user_id: telegramUserId,
+    step: 'awaiting_language',
+    language: null,
+    patient_id: null,
+    service_id: null,
+    selected_date: null,
+    selected_time: null,
+    duration_minutes: null,
+    custom_reason: null,
+  };
+  await supabase.from('telegram_sessions').upsert(session);
   return session;
 }
+
+async function updateSession(supabase: any, session: TelegramSession) {
+  console.log(`[Session] Updating session for ${session.telegram_user_id} -> step=${session.step}`);
+  await supabase.from('telegram_sessions').upsert(session);
+}
+
+async function resetSession(supabase: any, telegramUserId: number) {
+  console.log(`[Session] Resetting session for ${telegramUserId}`);
+  await supabase.from('telegram_sessions').delete().eq('telegram_user_id', telegramUserId);
+}
+
+// ============ MAIN HANDLER ============
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -380,613 +239,496 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const update: TelegramUpdate = await req.json();
-    console.log("Received Telegram update:", JSON.stringify(update));
+    console.log("[Webhook] Received update:", JSON.stringify(update));
 
     // Get doctor info
-    const { data: doctor } = await supabase
-      .from("doctor")
-      .select("*")
-      .limit(1)
-      .maybeSingle();
-
+    const { data: doctor } = await supabase.from("doctor").select("*").limit(1).maybeSingle();
     if (!doctor?.telegram_bot_token) {
-      console.log("No doctor or bot token configured");
-      return new Response(JSON.stringify({ ok: true }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      console.log("[Webhook] No doctor or bot token configured");
+      return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     const botToken = doctor.telegram_bot_token;
 
-    // Handle callback queries (button clicks)
+    // ============ CALLBACK QUERY (button clicks) ============
     if (update.callback_query) {
-      const callback = update.callback_query;
-      const userId = callback.from.id;
-      const chatId = callback.message.chat.id;
-      const data = callback.data;
-      
-      const session = await getOrCreateSession(supabase, userId);
+      const cb = update.callback_query;
+      const userId = cb.from.id;
+      const chatId = cb.message.chat.id;
+      const data = cb.data;
+
+      console.log(`[Callback] User ${userId}, data=${data}`);
+      await answerCallbackQuery(botToken, cb.id);
+
+      // Doctor actions (confirm/reject)
+      if (data.startsWith('apt_confirm_') || data.startsWith('apt_reject_')) {
+        const isConfirm = data.startsWith('apt_confirm_');
+        const appointmentId = data.replace('apt_confirm_', '').replace('apt_reject_', '');
+        
+        const newStatus = isConfirm ? 'CONFIRMED' : 'REJECTED';
+        await supabase.from('appointments').update({ status: newStatus }).eq('id', appointmentId);
+
+        // Notify patient
+        const { data: apt } = await supabase
+          .from('appointments')
+          .select('*, patients(*), services(name_arm, name_ru)')
+          .eq('id', appointmentId)
+          .single();
+
+        if (apt?.patients?.telegram_user_id) {
+          const patientLang = apt.patients.language || 'RU';
+          const t = translations[patientLang as 'ARM' | 'RU'];
+          const startDT = new Date(apt.start_date_time);
+          const dateTimeStr = startDT.toLocaleString(patientLang === 'ARM' ? 'hy-AM' : 'ru-RU', {
+            weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+          });
+          const doctorName = `${doctor.first_name} ${doctor.last_name}`;
+          const msg = isConfirm
+            ? t.appointmentConfirmed.replace('{doctorName}', doctorName).replace('{dateTime}', dateTimeStr)
+            : t.appointmentRejected.replace('{reason}', apt.rejection_reason || '-');
+          await sendTelegramMessage(botToken, apt.patients.telegram_user_id, msg);
+        }
+
+        const confirmMsg = isConfirm ? "✅ Appointment confirmed" : "❌ Appointment rejected";
+        await sendTelegramMessage(botToken, chatId, confirmMsg);
+
+        // Sync to Google Calendar if confirmed
+        if (isConfirm && doctor.google_calendar_id) {
+          try {
+            await supabase.functions.invoke('sync-google-calendar', { body: { appointmentId, action: 'create' } });
+          } catch (e) { console.error("[Webhook] Calendar sync failed:", e); }
+        }
+
+        return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      // Patient flow callbacks
+      const session = await getSession(supabase, userId);
       const lang = session.language || 'RU';
       const t = translations[lang];
 
-      console.log(`[Callback] User ${userId}, data: ${data}, current step: ${session.step}`);
-
-      await answerCallbackQuery(botToken, callback.id);
-
+      // Language selection
       if (data.startsWith('lang_')) {
-        // Language selection
         session.language = data === 'lang_arm' ? 'ARM' : 'RU';
-        session.step = 'enter_name';
-        userSessions.set(userId, session);
-        
-        console.log(`[Callback] Language set to ${session.language}, moving to enter_name`);
+        session.step = 'awaiting_name';
+        await updateSession(supabase, session);
+        console.log(`[Flow] ${userId}: language=${session.language} -> awaiting_name`);
         await sendTelegramMessage(botToken, chatId, translations[session.language].enterName);
-        
-      } else if (data.startsWith('service_')) {
-        if (data === 'service_other') {
-          // User selected "Other" - ask for custom reason
-          session.serviceId = 'other';
-          session.serviceName = t.otherService;
-          session.step = 'enter_custom_reason';
-          userSessions.set(userId, session);
-          
-          console.log(`[Callback] Service=other, moving to enter_custom_reason`);
-          await sendTelegramMessage(botToken, chatId, t.enterCustomReason);
-          
-        } else if (data === 'service_keep_other') {
-          // User chose to keep the custom reason as "Other"
-          session.serviceId = null as any;
-          session.duration = 30;
-          session.step = 'choose_date';
-          userSessions.set(userId, session);
-          
-          const dates = getAvailableDates(doctor.work_days as string[] | undefined);
-          const keyboard = {
-            inline_keyboard: dates.map(date => [{
-              text: formatDateForDisplay(date, lang),
-              callback_data: `date_${date}`,
-            }]).reduce((acc, curr, idx) => {
-              const rowIdx = Math.floor(idx / 3);
-              if (!acc[rowIdx]) acc[rowIdx] = [];
-              acc[rowIdx].push(curr[0]);
-              return acc;
-            }, [] as { text: string; callback_data: string }[][]),
-          };
-          
-          await sendTelegramMessage(botToken, chatId, t.chooseDate, keyboard);
-        } else {
-          // User selected a specific service
-          const serviceId = data.replace('service_', '');
-          const { data: service } = await supabase
-            .from('services')
-            .select('*')
-            .eq('id', serviceId)
-            .single();
-          
-          if (service) {
-            session.serviceId = serviceId;
-            session.serviceName = lang === 'ARM' ? service.name_arm : service.name_ru;
-            session.duration = service.default_duration_minutes;
-            session.step = 'choose_date';
-            userSessions.set(userId, session);
-
-            console.log(`[Callback] Service selected: ${session.serviceName}, moving to choose_date`);
-
-            const dates = getAvailableDates(doctor.work_days as string[] | undefined);
-            const keyboard = {
-              inline_keyboard: dates.map(date => [{
-                text: formatDateForDisplay(date, lang),
-                callback_data: `date_${date}`,
-              }]).reduce((acc, curr, idx) => {
-                const rowIdx = Math.floor(idx / 3);
-                if (!acc[rowIdx]) acc[rowIdx] = [];
-                acc[rowIdx].push(curr[0]);
-                return acc;
-              }, [] as { text: string; callback_data: string }[][]),
-            };
-
-            await sendTelegramMessage(botToken, chatId, t.chooseDate, keyboard);
-          }
-        }
-      } else if (data.startsWith('date_')) {
-        session.date = data.replace('date_', '');
-        session.step = 'choose_time';
-        userSessions.set(userId, session);
-
-        console.log(`[Callback] Date selected: ${session.date}, moving to choose_time`);
-
-        // Generate time slots based on doctor's work hours
-        const startHour = parseInt(doctor.work_day_start_time?.split(':')[0] || '9');
-        const endHour = parseInt(doctor.work_day_end_time?.split(':')[0] || '18');
-        const step = doctor.slot_step_minutes || 15;
-
-        const slots: string[] = [];
-        for (let h = startHour; h < endHour; h++) {
-          for (let m = 0; m < 60; m += step) {
-            slots.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
-          }
-        }
-
-        // Check existing appointments for this date
-        const { data: existingAppts } = await supabase
-          .from('appointments')
-          .select('start_date_time, duration_minutes')
-          .eq('status', 'CONFIRMED')
-          .gte('start_date_time', `${session.date}T00:00:00`)
-          .lte('start_date_time', `${session.date}T23:59:59`);
-
-        // Filter out occupied slots
-        const availableSlots = slots.filter(slot => {
-          const slotStart = new Date(`${session.date}T${slot}:00`);
-          const slotEnd = new Date(slotStart.getTime() + (session.duration || 30) * 60000);
-
-          return !existingAppts?.some(appt => {
-            const apptStart = new Date(appt.start_date_time);
-            const apptEnd = new Date(apptStart.getTime() + appt.duration_minutes * 60000);
-            return (slotStart < apptEnd && slotEnd > apptStart);
-          });
-        });
-
-        if (availableSlots.length === 0) {
-          await sendTelegramMessage(botToken, chatId, t.noSlots);
-          return new Response(JSON.stringify({ ok: true }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-
-        const keyboard = {
-          inline_keyboard: availableSlots.slice(0, 15).map(slot => [{
-            text: slot,
-            callback_data: `time_${slot}`,
-          }]).reduce((acc, curr, idx) => {
-            const rowIdx = Math.floor(idx / 4);
-            if (!acc[rowIdx]) acc[rowIdx] = [];
-            acc[rowIdx].push(curr[0]);
-            return acc;
-          }, [] as { text: string; callback_data: string }[][]),
-        };
-
-        await sendTelegramMessage(botToken, chatId, t.chooseTime, keyboard);
-      } else if (data.startsWith('time_')) {
-        session.time = data.replace('time_', '');
-        session.step = 'confirm';
-        userSessions.set(userId, session);
-
-        console.log(`[Callback] Time selected: ${session.time}, moving to confirm`);
-
-        const confirmText = `${t.confirmBooking}\n\n${t.service}: ${session.serviceName || session.customReason}\n${t.dateTime}: ${session.date} ${session.time}`;
-        const keyboard = {
-          inline_keyboard: [
-            [
-              { text: t.yes, callback_data: 'confirm_yes' },
-              { text: t.no, callback_data: 'confirm_no' },
-            ],
-          ],
-        };
-
-        await sendTelegramMessage(botToken, chatId, confirmText, keyboard);
-      } else if (data === 'confirm_yes') {
-        console.log(`[Callback] User confirmed booking`);
-        
-        // Create or update patient
-        let { data: patient } = await supabase
-          .from('patients')
-          .select('*')
-          .eq('telegram_user_id', userId)
-          .maybeSingle();
-
-        if (!patient) {
-          const { data: newPatient } = await supabase
-            .from('patients')
-            .insert({
-              telegram_user_id: userId,
-              first_name: session.firstName || callback.from.first_name,
-              last_name: session.lastName || callback.from.last_name,
-              phone_number: session.phone,
-              language: lang,
-            })
-            .select()
-            .single();
-          patient = newPatient;
-        } else {
-          // Update patient info if changed
-          await supabase
-            .from('patients')
-            .update({
-              first_name: session.firstName || patient.first_name,
-              last_name: session.lastName || patient.last_name,
-              phone_number: session.phone || patient.phone_number,
-              language: lang,
-            })
-            .eq('id', patient.id);
-        }
-
-        if (patient && doctor) {
-          const startDateTime = `${session.date}T${session.time}:00+04:00`; // Asia/Yerevan
-
-          const { data: appointment, error } = await supabase
-            .from('appointments')
-            .insert({
-              doctor_id: doctor.id,
-              patient_id: patient.id,
-              service_id: session.serviceId && session.serviceId !== 'other' ? session.serviceId : null,
-              custom_reason: session.customReason || (session.serviceId === 'other' ? session.serviceName : null),
-              start_date_time: startDateTime,
-              duration_minutes: session.duration || 30,
-              status: 'PENDING',
-              source: 'Telegram',
-            })
-            .select()
-            .single();
-
-          if (error) {
-            console.error("Error creating appointment:", error);
-            await sendTelegramMessage(botToken, chatId, "Error creating appointment. Please try again.");
-          } else {
-            await sendTelegramMessage(botToken, chatId, `${t.bookingConfirmed}\n\n${t.waitConfirmation}`);
-
-            // Notify doctor
-            if (doctor.telegram_chat_id) {
-              const doctorLang = doctor.interface_language || 'RU';
-              const serviceName = session.serviceName || session.customReason || 'Другое';
-              const notifyText = doctorLang === 'RU'
-                ? `🔔 <b>Новая заявка!</b>\n\n👤 Пациент: ${patient.first_name} ${patient.last_name || ''}\n📱 Телефон: ${patient.phone_number || 'Не указан'}\n💼 Услуга: ${serviceName}\n📅 Дата: ${session.date}\n🕐 Время: ${session.time}\n⏱ Длительность: ${session.duration} мин`
-                : `🔔 <b>Nor haytararutyun!</b>\n\n👤 Hivand: ${patient.first_name} ${patient.last_name || ''}\n📱 Herakhos: ${patient.phone_number || 'Chnshatvats'}\n💼 Tsarrayutyun: ${serviceName}\n📅 Amsativ: ${session.date}\n🕐 Zham: ${session.time}\n⏱ Tevoghutyun: ${session.duration} rop`;
-
-              const doctorKeyboard = {
-                inline_keyboard: [
-                  [
-                    { text: '✅ Подтвердить (30 мин)', callback_data: `approve_${appointment.id}_30` },
-                    { text: '✅ (60 мин)', callback_data: `approve_${appointment.id}_60` },
-                  ],
-                  [
-                    { text: '❌ Отклонить', callback_data: `reject_${appointment.id}` },
-                  ],
-                ],
-              };
-
-              await sendTelegramMessage(botToken, parseInt(doctor.telegram_chat_id), notifyText, doctorKeyboard);
-            }
-          }
-        }
-
-        userSessions.delete(userId);
-      } else if (data === 'confirm_no') {
-        userSessions.delete(userId);
-        await sendTelegramMessage(botToken, chatId, lang === 'RU' ? 'Запись отменена.' : 'Granchumy chgtsvats e.');
-      } else if (data.startsWith('approve_')) {
-        // Doctor approval
-        const parts = data.split('_');
-        const appointmentId = parts[1];
-        const duration = parseInt(parts[2]);
-
-        const { data: appointment } = await supabase
-          .from('appointments')
-          .update({ status: 'CONFIRMED', duration_minutes: duration })
-          .eq('id', appointmentId)
-          .select(`*, patients (*)`)
-          .single();
-
-        if (appointment?.patients) {
-          const patient = appointment.patients;
-          const patientLang: "ARM" | "RU" = patient.language === "ARM" ? "ARM" : "RU";
-          const t = translations[patientLang];
-          const dateTime = new Date(appointment.start_date_time).toLocaleString(
-            patientLang === 'ARM' ? 'hy-AM' : 'ru-RU'
-          );
-          const confirmMsg = t.appointmentConfirmed
-            .replace('{doctorName}', `${doctor.first_name} ${doctor.last_name}`)
-            .replace('{dateTime}', dateTime);
-
-          // Notify patient
-          await sendTelegramMessage(botToken, patient.telegram_user_id, confirmMsg);
-
-          // Sync to Google Calendar
-          try {
-            await supabase.functions.invoke('sync-google-calendar', {
-              body: { appointmentId, action: 'create' },
-            });
-          } catch (e) {
-            console.error("Calendar sync error:", e);
-          }
-
-          // Log to Google Sheets
-          try {
-            await supabase.functions.invoke('sync-google-sheets', {
-              body: { appointmentId, action: 'log' },
-            });
-          } catch (e) {
-            console.error("Sheets sync error:", e);
-          }
-        }
-
-        await sendTelegramMessage(botToken, chatId, '✅ Запись подтверждена!');
-      } else if (data.startsWith('reject_')) {
-        const appointmentId = data.replace('reject_', '');
-
-        const { data: appointment } = await supabase
-          .from('appointments')
-          .update({ status: 'REJECTED', rejection_reason: 'Отклонено врачом' })
-          .eq('id', appointmentId)
-          .select(`*, patients (*)`)
-          .single();
-
-        if (appointment?.patients) {
-          const patient = appointment.patients;
-          const patientLang: "ARM" | "RU" = patient.language === "ARM" ? "ARM" : "RU";
-          const t = translations[patientLang];
-          const rejectMsg = t.appointmentRejected.replace('{reason}', 'Врач не может принять вас в это время.');
-          await sendTelegramMessage(botToken, patient.telegram_user_id, rejectMsg);
-        }
-
-        await sendTelegramMessage(botToken, chatId, '❌ Запись отклонена.');
+        return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
-      return new Response(JSON.stringify({ ok: true }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      // Skip phone
+      if (data === 'skip_phone') {
+        session.step = 'awaiting_service';
+        await updateSession(supabase, session);
+        console.log(`[Flow] ${userId}: skipped phone -> awaiting_service`);
+        await showServicesMenu(supabase, botToken, chatId, session, doctor);
+        return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      // Service selection
+      if (data.startsWith('service_')) {
+        const serviceId = data.replace('service_', '');
+        if (serviceId === 'other') {
+          session.service_id = null;
+          session.custom_reason = null;
+          session.step = 'awaiting_service'; // Will ask for custom reason text next
+          await updateSession(supabase, session);
+          await sendTelegramMessage(botToken, chatId, t.enterCustomReason);
+        } else {
+          const { data: svc } = await supabase.from('services').select('*').eq('id', serviceId).single();
+          if (svc) {
+            session.service_id = svc.id;
+            session.duration_minutes = svc.default_duration_minutes;
+            session.step = 'awaiting_date';
+            await updateSession(supabase, session);
+            console.log(`[Flow] ${userId}: service=${svc.id} -> awaiting_date`);
+            await showDatesMenu(botToken, chatId, session, doctor);
+          }
+        }
+        return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      // Date selection
+      if (data.startsWith('date_')) {
+        session.selected_date = data.replace('date_', '');
+        session.step = 'awaiting_time';
+        await updateSession(supabase, session);
+        console.log(`[Flow] ${userId}: date=${session.selected_date} -> awaiting_time`);
+        await showTimeSlotsMenu(supabase, botToken, chatId, session, doctor);
+        return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      // Time selection
+      if (data.startsWith('time_')) {
+        session.selected_time = data.replace('time_', '');
+        session.step = 'awaiting_confirmation';
+        await updateSession(supabase, session);
+        console.log(`[Flow] ${userId}: time=${session.selected_time} -> awaiting_confirmation`);
+        await showConfirmation(supabase, botToken, chatId, session, doctor);
+        return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      // Confirm booking
+      if (data === 'confirm_yes') {
+        await createAppointment(supabase, botToken, chatId, session, doctor);
+        session.step = 'idle';
+        await updateSession(supabase, session);
+        return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      // Cancel booking
+      if (data === 'confirm_no') {
+        session.step = 'awaiting_service';
+        session.service_id = null;
+        session.selected_date = null;
+        session.selected_time = null;
+        session.custom_reason = null;
+        await updateSession(supabase, session);
+        await showServicesMenu(supabase, botToken, chatId, session, doctor);
+        return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Handle text messages
+    // ============ TEXT MESSAGE ============
     if (update.message) {
-      const message = update.message;
-      const userId = message.from.id;
-      const chatId = message.chat.id;
-      const text = message.text?.trim();
-      
-      console.log(`[Message] User ${userId}, text: "${text?.substring(0, 50)}"`);
+      const msg = update.message;
+      const userId = msg.from.id;
+      const chatId = msg.chat.id;
+      const text = msg.text?.trim() || '';
 
-      // Handle /start command - always reset session
+      console.log(`[Message] User ${userId}, text="${text.substring(0, 30)}"`);
+
+      // Handle /start command - reset session
       if (text === '/start') {
-        console.log(`[Message] /start command, resetting session for user ${userId}`);
-        userSessions.delete(userId);
-        
-        const session: UserSession = { step: 'choose_language' };
-        userSessions.set(userId, session);
-
+        await resetSession(supabase, userId);
+        console.log(`[Flow] ${userId}: /start -> showing language selection`);
         const keyboard = {
           inline_keyboard: [
-            [
-              { text: '🇦🇲 Hayeren', callback_data: 'lang_arm' },
-              { text: '🇷🇺 Русский', callback_data: 'lang_ru' },
-            ],
-          ],
+            [{ text: "🇦🇲 Hayeren", callback_data: "lang_arm" }, { text: "🇷🇺 Русский", callback_data: "lang_ru" }]
+          ]
         };
-
-        await sendTelegramMessage(
-          botToken,
-          chatId,
-          `${translations.RU.welcome}\n${translations.ARM.welcome}`,
-          keyboard
-        );
-        return new Response(JSON.stringify({ ok: true }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        await sendTelegramMessage(botToken, chatId, `${translations.RU.welcome}\n${translations.ARM.welcome}`, keyboard);
+        return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
       // Get current session
-      const session = await getOrCreateSession(supabase, userId);
+      const session = await getSession(supabase, userId);
       const lang = session.language || 'RU';
       const t = translations[lang];
 
-      console.log(`[Message] Current session step: ${session.step}, language: ${lang}`);
+      console.log(`[Flow] ${userId}: current step=${session.step}, processing text message`);
 
       // Handle based on current step
-      if (session.step === 'enter_name' && text) {
-        // User is entering their name
-        console.log(`[Message] Processing name input: "${text}"`);
-        
-        const nameParts = text.split(' ').filter(p => p.length > 0);
-        session.firstName = nameParts[0];
-        session.lastName = nameParts.slice(1).join(' ') || undefined;
-        session.step = 'share_phone';
-        userSessions.set(userId, session);
-
-        console.log(`[Message] Name parsed: ${session.firstName} ${session.lastName}, moving to share_phone`);
-
-        const keyboard = {
-          keyboard: [[{ text: t.sharePhoneButton, request_contact: true }]],
-          resize_keyboard: true,
-          one_time_keyboard: true,
-        };
-
-        await sendTelegramMessage(botToken, chatId, t.sharePhone, keyboard);
-        
-      } else if (session.step === 'share_phone' && message.contact) {
-        // User shared their phone number
-        console.log(`[Message] Phone received: ${message.contact.phone_number}`);
-        
-        session.phone = message.contact.phone_number;
-        session.step = 'choose_service';
-        userSessions.set(userId, session);
-
-        // Save patient to database now
-        const { data: existingPatient } = await supabase
-          .from('patients')
-          .select('id')
-          .eq('telegram_user_id', userId)
-          .maybeSingle();
-
-        if (existingPatient) {
-          await supabase
-            .from('patients')
-            .update({
-              first_name: session.firstName || message.from.first_name,
-              last_name: session.lastName || message.from.last_name,
-              phone_number: session.phone,
-              language: lang,
-            })
-            .eq('id', existingPatient.id);
-        } else {
-          await supabase
-            .from('patients')
-            .insert({
-              telegram_user_id: userId,
-              first_name: session.firstName || message.from.first_name,
-              last_name: session.lastName || message.from.last_name,
-              phone_number: session.phone,
-              language: lang,
-            });
-        }
-
-        console.log(`[Message] Patient saved, moving to choose_service`);
-
-        // Get services
-        const { data: services } = await supabase
-          .from('services')
-          .select('*')
-          .eq('doctor_id', doctor.id)
-          .eq('is_active', true)
-          .order('sort_order');
-
-        const serviceButtons = (services || []).map(s => [{
-          text: lang === 'ARM' ? s.name_arm : s.name_ru,
-          callback_data: `service_${s.id}`,
-        }]);
-
-        serviceButtons.push([{ text: t.otherService, callback_data: 'service_other' }]);
-
-        const keyboard = { inline_keyboard: serviceButtons };
-
-        // Remove custom keyboard and show services
-        await sendTelegramMessage(botToken, chatId, t.chooseService, { 
-          ...keyboard,
-          remove_keyboard: true 
-        });
-        
-      } else if (session.step === 'enter_custom_reason' && text) {
-        // User entered custom reason - try LLM classification
-        console.log(`[Message] Custom reason entered: "${text}"`);
-        
-        session.customReason = text;
-        
-        // Get services for classification
-        const { data: services } = await supabase
-          .from('services')
-          .select('id, name_arm, name_ru, default_duration_minutes')
-          .eq('doctor_id', doctor.id)
-          .eq('is_active', true);
-
-        // Try to classify with LLM if enabled
-        const llmResult = await classifyWithLLM(
-          text,
-          services || [],
-          doctor,
-          lang
-        );
-
-        if (llmResult && llmResult.serviceId) {
-          // LLM successfully classified the reason
-          console.log(`[Message] LLM classified to service: ${llmResult.serviceName}`);
-          session.serviceId = llmResult.serviceId;
-          session.serviceName = `${llmResult.serviceName} (AI)`;
-          session.duration = llmResult.duration;
-          session.step = 'choose_date';
-          userSessions.set(userId, session);
-          
-          // Proceed to date selection
-          const dates = getAvailableDates(doctor.work_days as string[] | undefined);
+      switch (session.step) {
+        case 'awaiting_language':
+          // User sent text instead of clicking button - show language selection again
+          console.log(`[Flow] ${userId}: awaiting_language, re-showing language buttons`);
           const keyboard = {
-            inline_keyboard: dates.map(date => [{
-              text: formatDateForDisplay(date, lang),
-              callback_data: `date_${date}`,
-            }]).reduce((acc, curr, idx) => {
-              const rowIdx = Math.floor(idx / 3);
-              if (!acc[rowIdx]) acc[rowIdx] = [];
-              acc[rowIdx].push(curr[0]);
-              return acc;
-            }, [] as { text: string; callback_data: string }[][]),
+            inline_keyboard: [
+              [{ text: "🇦🇲 Hayeren", callback_data: "lang_arm" }, { text: "🇷🇺 Русский", callback_data: "lang_ru" }]
+            ]
           };
+          await sendTelegramMessage(botToken, chatId, `${translations.RU.welcome}\n${translations.ARM.welcome}`, keyboard);
+          break;
 
-          await sendTelegramMessage(botToken, chatId, t.chooseDate, keyboard);
-        } else {
-          // Fallback: Ask patient to choose service manually
-          console.log("[Message] LLM classification failed or disabled, falling back to manual selection");
-          session.serviceName = text;
-          session.duration = 30;
-          
-          // Show service selection again
-          const serviceButtons = (services || []).map(s => [{
-            text: lang === 'ARM' ? s.name_arm : s.name_ru,
-            callback_data: `service_${s.id}`,
-          }]);
+        case 'awaiting_name':
+          // Parse name from text
+          const nameParts = text.split(/\s+/);
+          const firstName = nameParts[0] || text;
+          const lastName = nameParts.slice(1).join(' ') || null;
 
-          // Add option to keep as "Other"
-          serviceButtons.push([{ 
-            text: lang === 'ARM' ? '📝 Paheq ibrev "Ayl"' : '📝 Оставить как "Другое"', 
-            callback_data: 'service_keep_other' 
-          }]);
+          console.log(`[Flow] ${userId}: received name="${firstName} ${lastName}", creating/updating patient`);
 
-          const keyboard = { inline_keyboard: serviceButtons };
-          const fallbackMsg = lang === 'ARM' 
-            ? 'Yntreq tsarrayutyuny kamarts shdpvel dzez aytselutyuny:'
-            : 'Выберите услугу или оставьте как "Другое":';
+          // Upsert patient
+          const { data: existingPatient } = await supabase
+            .from('patients')
+            .select('id')
+            .eq('telegram_user_id', userId)
+            .maybeSingle();
 
-          await sendTelegramMessage(botToken, chatId, fallbackMsg, keyboard);
-        }
-        
-        userSessions.set(userId, session);
-        
-      } else if (session.step === 'choose_service' && text) {
-        // User sent text instead of clicking service button - treat as returning user trying to book
-        console.log(`[Message] Unexpected text at choose_service step, prompting service selection`);
-        
-        // Get services
-        const { data: services } = await supabase
-          .from('services')
-          .select('*')
-          .eq('doctor_id', doctor.id)
-          .eq('is_active', true)
-          .order('sort_order');
+          let patientId: string;
+          if (existingPatient) {
+            await supabase.from('patients').update({
+              first_name: firstName,
+              last_name: lastName,
+              language: session.language,
+            }).eq('id', existingPatient.id);
+            patientId = existingPatient.id;
+          } else {
+            const { data: newPatient } = await supabase.from('patients').insert({
+              telegram_user_id: userId,
+              first_name: firstName,
+              last_name: lastName,
+              language: session.language,
+            }).select('id').single();
+            patientId = newPatient?.id;
+          }
 
-        const serviceButtons = (services || []).map(s => [{
-          text: lang === 'ARM' ? s.name_arm : s.name_ru,
-          callback_data: `service_${s.id}`,
-        }]);
+          session.patient_id = patientId;
+          session.step = 'awaiting_phone';
+          await updateSession(supabase, session);
 
-        serviceButtons.push([{ text: t.otherService, callback_data: 'service_other' }]);
+          console.log(`[Flow] ${userId}: patient saved, patientId=${patientId} -> awaiting_phone`);
 
-        const keyboard = { inline_keyboard: serviceButtons };
+          // Ask for phone with skip option
+          const phoneKeyboard = {
+            keyboard: [[{ text: t.sharePhoneButton, request_contact: true }]],
+            resize_keyboard: true,
+            one_time_keyboard: true,
+          };
+          const skipKeyboard = { inline_keyboard: [[{ text: t.skipPhone, callback_data: 'skip_phone' }]] };
+          await sendTelegramMessage(botToken, chatId, t.sharePhone, phoneKeyboard);
+          await sendTelegramMessage(botToken, chatId, "👇", skipKeyboard);
+          break;
 
-        await sendTelegramMessage(botToken, chatId, t.chooseService, keyboard);
-        
-      } else if (!session.language) {
-        // No language set and not /start - show language selection
-        console.log(`[Message] No language set, showing language selection`);
-        
-        session.step = 'choose_language';
-        userSessions.set(userId, session);
+        case 'awaiting_phone':
+          // Handle contact share
+          if (msg.contact?.phone_number) {
+            await supabase.from('patients').update({ phone_number: msg.contact.phone_number }).eq('id', session.patient_id);
+            console.log(`[Flow] ${userId}: phone saved -> awaiting_service`);
+          } else {
+            console.log(`[Flow] ${userId}: text instead of contact, treating as phone or skip -> awaiting_service`);
+            // Could be phone as text, save it
+            if (/^\+?\d{6,}$/.test(text.replace(/\s/g, ''))) {
+              await supabase.from('patients').update({ phone_number: text }).eq('id', session.patient_id);
+            }
+          }
+          session.step = 'awaiting_service';
+          await updateSession(supabase, session);
+          await showServicesMenu(supabase, botToken, chatId, session, doctor);
+          break;
 
-        const keyboard = {
-          inline_keyboard: [
-            [
-              { text: '🇦🇲 Hayeren', callback_data: 'lang_arm' },
-              { text: '🇷🇺 Русский', callback_data: 'lang_ru' },
-            ],
-          ],
-        };
+        case 'awaiting_service':
+          // If user types text here, treat it as custom reason
+          session.custom_reason = text;
+          session.duration_minutes = 30; // default for custom
+          session.step = 'awaiting_date';
+          await updateSession(supabase, session);
+          console.log(`[Flow] ${userId}: custom reason="${text}" -> awaiting_date`);
+          await showDatesMenu(botToken, chatId, session, doctor);
+          break;
 
-        await sendTelegramMessage(
-          botToken,
-          chatId,
-          `${translations.RU.welcome}\n${translations.ARM.welcome}`,
-          keyboard
-        );
-      } else {
-        // Unknown state or waiting for button click
-        console.log(`[Message] Unhandled message at step ${session.step}`);
+        case 'awaiting_date':
+        case 'awaiting_time':
+        case 'awaiting_confirmation':
+          // User sent text when buttons expected - resend appropriate menu
+          console.log(`[Flow] ${userId}: unexpected text at step=${session.step}, re-showing menu`);
+          if (session.step === 'awaiting_date') await showDatesMenu(botToken, chatId, session, doctor);
+          else if (session.step === 'awaiting_time') await showTimeSlotsMenu(supabase, botToken, chatId, session, doctor);
+          else if (session.step === 'awaiting_confirmation') await showConfirmation(supabase, botToken, chatId, session, doctor);
+          break;
+
+        case 'idle':
+          // After booking, show services again for new booking
+          session.step = 'awaiting_service';
+          session.service_id = null;
+          session.selected_date = null;
+          session.selected_time = null;
+          session.custom_reason = null;
+          await updateSession(supabase, session);
+          await showServicesMenu(supabase, botToken, chatId, session, doctor);
+          break;
+
+        default:
+          console.log(`[Flow] ${userId}: unknown step=${session.step}, resetting`);
+          await resetSession(supabase, userId);
+          break;
       }
+
+      return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    return new Response(JSON.stringify({ ok: true }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  } catch (error: unknown) {
-    console.error("Webhook error:", error);
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    return new Response(JSON.stringify({ error: errorMessage }), {
+    return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  } catch (error) {
+    console.error("[Webhook] Error:", error);
+    return new Response(JSON.stringify({ error: String(error) }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
+
+// ============ FLOW HELPERS ============
+
+async function showServicesMenu(supabase: any, botToken: string, chatId: number, session: TelegramSession, doctor: any) {
+  const lang = session.language || 'RU';
+  const t = translations[lang];
+
+  const { data: services } = await supabase
+    .from('services')
+    .select('*')
+    .eq('doctor_id', doctor.id)
+    .eq('is_active', true)
+    .order('sort_order', { ascending: true });
+
+  const buttons = (services || []).map((s: any) => [{
+    text: lang === 'ARM' ? s.name_arm : s.name_ru,
+    callback_data: `service_${s.id}`,
+  }]);
+  buttons.push([{ text: t.otherService, callback_data: 'service_other' }]);
+
+  await sendTelegramMessage(botToken, chatId, t.chooseService, { inline_keyboard: buttons });
+}
+
+async function showDatesMenu(botToken: string, chatId: number, session: TelegramSession, doctor: any) {
+  const lang = session.language || 'RU';
+  const t = translations[lang];
+  const dates = getAvailableDates(doctor.work_days as string[] | undefined);
+
+  const rows: { text: string; callback_data: string }[][] = [];
+  for (let i = 0; i < dates.length; i += 3) {
+    rows.push(dates.slice(i, i + 3).map(d => ({
+      text: formatDateForDisplay(d, lang),
+      callback_data: `date_${d}`,
+    })));
+  }
+
+  await sendTelegramMessage(botToken, chatId, t.chooseDate, { inline_keyboard: rows });
+}
+
+async function showTimeSlotsMenu(supabase: any, botToken: string, chatId: number, session: TelegramSession, doctor: any) {
+  const lang = session.language || 'RU';
+  const t = translations[lang];
+
+  const startHour = parseInt(doctor.work_day_start_time?.split(':')[0] || '9');
+  const startMin = parseInt(doctor.work_day_start_time?.split(':')[1] || '0');
+  const endHour = parseInt(doctor.work_day_end_time?.split(':')[0] || '18');
+  const endMin = parseInt(doctor.work_day_end_time?.split(':')[1] || '0');
+  const slotStep = doctor.slot_step_minutes || 30;
+  const duration = session.duration_minutes || 30;
+
+  // Get existing appointments for selected date
+  const dateStart = `${session.selected_date}T00:00:00`;
+  const dateEnd = `${session.selected_date}T23:59:59`;
+  const { data: existingApts } = await supabase
+    .from('appointments')
+    .select('start_date_time, duration_minutes')
+    .eq('doctor_id', doctor.id)
+    .eq('status', 'CONFIRMED')
+    .gte('start_date_time', dateStart)
+    .lte('start_date_time', dateEnd);
+
+  const bookedSlots = (existingApts || []).map((a: any) => {
+    const start = new Date(a.start_date_time);
+    const end = new Date(start.getTime() + a.duration_minutes * 60000);
+    return { start, end };
+  });
+
+  const slots: string[] = [];
+  let current = new Date(`${session.selected_date}T${String(startHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}:00`);
+  const endTime = new Date(`${session.selected_date}T${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}:00`);
+
+  while (current < endTime) {
+    const slotEnd = new Date(current.getTime() + duration * 60000);
+    if (slotEnd > endTime) break;
+
+    const isBooked = bookedSlots.some((b: any) => 
+      (current >= b.start && current < b.end) || (slotEnd > b.start && slotEnd <= b.end)
+    );
+
+    if (!isBooked) {
+      slots.push(`${String(current.getHours()).padStart(2, '0')}:${String(current.getMinutes()).padStart(2, '0')}`);
+    }
+
+    current = new Date(current.getTime() + slotStep * 60000);
+  }
+
+  if (slots.length === 0) {
+    await sendTelegramMessage(botToken, chatId, t.noSlots);
+    session.step = 'awaiting_date';
+    await supabase.from('telegram_sessions').upsert(session);
+    await showDatesMenu(botToken, chatId, session, doctor);
+    return;
+  }
+
+  const rows: { text: string; callback_data: string }[][] = [];
+  for (let i = 0; i < slots.length; i += 4) {
+    rows.push(slots.slice(i, i + 4).map(s => ({ text: s, callback_data: `time_${s}` })));
+  }
+
+  await sendTelegramMessage(botToken, chatId, t.chooseTime, { inline_keyboard: rows });
+}
+
+async function showConfirmation(supabase: any, botToken: string, chatId: number, session: TelegramSession, doctor: any) {
+  const lang = session.language || 'RU';
+  const t = translations[lang];
+
+  let serviceName = session.custom_reason || '-';
+  if (session.service_id) {
+    const { data: svc } = await supabase.from('services').select('name_arm, name_ru').eq('id', session.service_id).single();
+    serviceName = svc ? (lang === 'ARM' ? svc.name_arm : svc.name_ru) : serviceName;
+  }
+
+  const dateDisplay = formatDateForDisplay(session.selected_date!, lang);
+  const text = `${t.confirmBooking}\n\n${t.service}: ${serviceName}\n${t.dateTime}: ${dateDisplay} ${session.selected_time}`;
+
+  const keyboard = {
+    inline_keyboard: [[
+      { text: t.yes, callback_data: 'confirm_yes' },
+      { text: t.no, callback_data: 'confirm_no' },
+    ]]
+  };
+
+  await sendTelegramMessage(botToken, chatId, text, keyboard);
+}
+
+async function createAppointment(supabase: any, botToken: string, chatId: number, session: TelegramSession, doctor: any) {
+  const lang = session.language || 'RU';
+  const t = translations[lang];
+
+  const startDateTime = `${session.selected_date}T${session.selected_time}:00`;
+
+  const { data: apt, error } = await supabase.from('appointments').insert({
+    doctor_id: doctor.id,
+    patient_id: session.patient_id,
+    service_id: session.service_id,
+    custom_reason: session.custom_reason,
+    start_date_time: startDateTime,
+    duration_minutes: session.duration_minutes || 30,
+    status: 'PENDING',
+    source: 'Telegram',
+  }).select('id').single();
+
+  if (error) {
+    console.error("[Webhook] Failed to create appointment:", error);
+    await sendTelegramMessage(botToken, chatId, "Error creating appointment. Please try again.");
+    return;
+  }
+
+  console.log(`[Webhook] Appointment created: ${apt.id}`);
+  await sendTelegramMessage(botToken, chatId, t.bookingConfirmed + "\n" + t.waitConfirmation);
+
+  // Notify doctor
+  if (doctor.telegram_chat_id) {
+    const { data: patient } = await supabase.from('patients').select('first_name, last_name').eq('id', session.patient_id).single();
+    const patientName = `${patient?.first_name || ''} ${patient?.last_name || ''}`.trim();
+
+    let serviceName = session.custom_reason || '-';
+    if (session.service_id) {
+      const { data: svc } = await supabase.from('services').select('name_arm, name_ru').eq('id', session.service_id).single();
+      serviceName = svc ? (doctor.interface_language === 'ARM' ? svc.name_arm : svc.name_ru) : serviceName;
+    }
+
+    const dateDisplay = formatDateForDisplay(session.selected_date!, doctor.interface_language || 'RU');
+    const doctorLang = (doctor.interface_language || 'RU') as 'ARM' | 'RU';
+    const dt = translations[doctorLang];
+
+    const notifyText = dt.newDoctor
+      .replace('{patientName}', patientName)
+      .replace('{service}', serviceName)
+      .replace('{dateTime}', `${dateDisplay} ${session.selected_time}`);
+
+    const doctorKeyboard = {
+      inline_keyboard: [[
+        { text: dt.confirm, callback_data: `apt_confirm_${apt.id}` },
+        { text: dt.reject, callback_data: `apt_reject_${apt.id}` },
+      ]]
+    };
+
+    await sendTelegramMessage(botToken, doctor.telegram_chat_id, notifyText, doctorKeyboard);
+    console.log(`[Webhook] Doctor notified at chat ${doctor.telegram_chat_id}`);
+  }
+}
