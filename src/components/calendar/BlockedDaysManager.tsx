@@ -42,13 +42,16 @@ export function BlockedDaysManager({
 }: BlockedDaysManagerProps) {
   const { language } = useLanguage();
   const [isBlockDialogOpen, setIsBlockDialogOpen] = useState(false);
+  const [isBlockWarningDialogOpen, setIsBlockWarningDialogOpen] = useState(false);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [reason, setReason] = useState('');
   const [cancelReason, setCancelReason] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [doctorId, setDoctorId] = useState<string | null>(null);
   const [appointmentsToCancel, setAppointmentsToCancel] = useState<AppointmentToCancel[]>([]);
+  const [appointmentsOnBlockDays, setAppointmentsOnBlockDays] = useState<AppointmentToCancel[]>([]);
   const [isFetchingAppointments, setIsFetchingAppointments] = useState(false);
+  const [blockAndCancel, setBlockAndCancel] = useState(false);
 
   const locale = language === 'ARM' ? hy : ru;
 
@@ -63,11 +66,92 @@ export function BlockedDaysManager({
 
   const formatDateForDb = (date: Date) => format(date, 'yyyy-MM-dd');
 
-  const handleBlockDays = async () => {
+  // Check for appointments before opening block dialog
+  const handleBlockButtonClick = async () => {
+    if (!doctorId || selectedDates.length === 0) return;
+
+    setIsFetchingAppointments(true);
+    try {
+      const dateStrings = selectedDates.map(formatDateForDb);
+      
+      const { data, error } = await supabase
+        .from('appointments')
+        .select(`
+          id,
+          start_date_time,
+          patients (
+            first_name,
+            last_name,
+            telegram_user_id
+          ),
+          services (
+            name_arm,
+            name_ru
+          )
+        `)
+        .eq('doctor_id', doctorId)
+        .in('status', ['PENDING', 'CONFIRMED']);
+
+      if (error) throw error;
+
+      const filtered = (data || []).filter(apt => {
+        const aptDate = format(new Date(apt.start_date_time), 'yyyy-MM-dd');
+        return dateStrings.includes(aptDate);
+      }) as AppointmentToCancel[];
+
+      setAppointmentsOnBlockDays(filtered);
+
+      if (filtered.length > 0) {
+        // Show warning dialog
+        setIsBlockWarningDialogOpen(true);
+      } else {
+        // No appointments, go directly to block dialog
+        setIsBlockDialogOpen(true);
+      }
+    } catch (error) {
+      console.error('Error checking appointments:', error);
+      // Still allow blocking on error
+      setIsBlockDialogOpen(true);
+    } finally {
+      setIsFetchingAppointments(false);
+    }
+  };
+
+  const handleBlockDays = async (cancelAppointments = false) => {
     if (!doctorId || selectedDates.length === 0) return;
 
     setIsLoading(true);
     try {
+      // If we need to cancel appointments first
+      if (cancelAppointments && appointmentsOnBlockDays.length > 0) {
+        const appointmentIds = appointmentsOnBlockDays.map(apt => apt.id);
+
+        const { error: updateError } = await supabase
+          .from('appointments')
+          .update({ 
+            status: 'CANCELLED_BY_DOCTOR',
+            rejection_reason: reason.trim() || null
+          })
+          .in('id', appointmentIds);
+
+        if (updateError) throw updateError;
+
+        // Send notifications
+        const notificationPromises = appointmentsOnBlockDays
+          .filter(apt => apt.patients?.telegram_user_id)
+          .map(apt => 
+            supabase.functions.invoke('notify-patient-cancellation', {
+              body: { 
+                appointmentId: apt.id, 
+                reason: reason.trim() || undefined 
+              }
+            })
+          );
+
+        await Promise.allSettled(notificationPromises);
+      }
+
+      // Block the days
       const blockedDaysData = selectedDates.map(date => ({
         doctor_id: doctorId,
         blocked_date: formatDateForDb(date),
@@ -80,15 +164,24 @@ export function BlockedDaysManager({
 
       if (error) throw error;
 
-      toast.success(
-        language === 'ARM' 
-          ? 'Օdelays delays delays' 
-          : 'Дни успешно заблокированы'
-      );
+      const message = cancelAppointments && appointmentsOnBlockDays.length > 0
+        ? (language === 'ARM' 
+            ? `Օdelays delays, ${appointmentsOnBlockDays.length} delays delays`
+            : `Дни заблокированы, ${appointmentsOnBlockDays.length} записей отменено`)
+        : (language === 'ARM' 
+            ? 'Օdelays delays delays' 
+            : 'Дни успешно заблокированы');
+
+      toast.success(message);
       setIsBlockDialogOpen(false);
+      setIsBlockWarningDialogOpen(false);
       setReason('');
+      setAppointmentsOnBlockDays([]);
       onClearSelection();
       onBlockedDaysChange();
+      if (cancelAppointments) {
+        onAppointmentsChange?.();
+      }
     } catch (error) {
       console.error('Error blocking days:', error);
       toast.error(
@@ -278,11 +371,12 @@ export function BlockedDaysManager({
           <Button
             variant="destructive"
             size="sm"
-            onClick={() => setIsBlockDialogOpen(true)}
+            onClick={handleBlockButtonClick}
+            disabled={isFetchingAppointments}
             className="gap-1"
           >
             <CalendarOff className="h-4 w-4" />
-            {language === 'ARM' ? 'Блokavorel' : 'Заблокировать'}
+            {language === 'ARM' ? 'Արգdelays' : 'Заблокировать'}
           </Button>
         )}
         
@@ -355,12 +449,100 @@ export function BlockedDaysManager({
             </Button>
             <Button 
               variant="destructive" 
-              onClick={handleBlockDays}
+              onClick={() => handleBlockDays(false)}
               disabled={isLoading}
             >
               {isLoading 
-                ? (language === 'ARM' ? 'Blokavorвум...' : 'Блокировка...') 
-                : (language === 'ARM' ? 'Заблokirovать' : 'Заблокировать')
+                ? (language === 'ARM' ? 'Արdelays...' : 'Блокировка...') 
+                : (language === 'ARM' ? 'Արdelays' : 'Заблокировать')
+              }
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Block Warning Dialog - shown when there are existing appointments */}
+      <Dialog open={isBlockWarningDialogOpen} onOpenChange={setIsBlockWarningDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-warning">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              {language === 'ARM' ? 'Զգdelays!' : 'Внимание!'}
+            </DialogTitle>
+            <DialogDescription>
+              {language === 'ARM' 
+                ? 'На выбранные дни есть активные записи. Выберите действие:'
+                : 'На выбранные дни есть активные записи. Выберите действие:'}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* Appointments list */}
+            <div>
+              <Label className="text-sm font-medium">
+                {language === 'ARM' 
+                  ? `Активных записей: ${appointmentsOnBlockDays.length}`
+                  : `Активных записей: ${appointmentsOnBlockDays.length}`}
+              </Label>
+              <div className="mt-2 max-h-32 overflow-y-auto space-y-1 border rounded p-2 bg-muted/30">
+                {appointmentsOnBlockDays.map(apt => (
+                  <div key={apt.id} className="text-xs flex justify-between items-center">
+                    <span>
+                      {apt.patients?.first_name} {apt.patients?.last_name}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {format(new Date(apt.start_date_time), 'd MMM HH:mm', { locale })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            {/* Reason input */}
+            <div className="space-y-2">
+              <Label htmlFor="blockReason">
+                {language === 'ARM' ? 'Причина' : 'Причина'}
+              </Label>
+              <Input
+                id="blockReason"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder={language === 'ARM' ? 'Օрінak, Отпуск' : 'Например: Отпуск'}
+                maxLength={100}
+              />
+            </div>
+          </div>
+          
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button 
+              variant="ghost" 
+              onClick={() => {
+                setIsBlockWarningDialogOpen(false);
+                setReason('');
+                setAppointmentsOnBlockDays([]);
+              }}
+            >
+              {language === 'ARM' ? 'Չdelays' : 'Отмена'}
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => handleBlockDays(false)}
+              disabled={isLoading}
+            >
+              {language === 'ARM' 
+                ? 'Только заблокировать' 
+                : 'Только заблокировать'}
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={() => handleBlockDays(true)}
+              disabled={isLoading}
+            >
+              {isLoading 
+                ? (language === 'ARM' ? 'Выполнение...' : 'Выполнение...') 
+                : (language === 'ARM' 
+                    ? 'Заблокировать и отменить записи' 
+                    : 'Заблокировать и отменить записи')
               }
             </Button>
           </DialogFooter>
