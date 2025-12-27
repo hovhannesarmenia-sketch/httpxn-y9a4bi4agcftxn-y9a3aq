@@ -115,6 +115,32 @@ function formatDateForDisplay(dateStr: string, lang: 'ARM' | 'RU'): string {
   return date.toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
+// ============ BOOKING LIMIT CHECK ============
+const MAX_ACTIVE_BOOKINGS = 3;
+
+async function getActiveBookingsCount(supabase: any, patientId: string, doctorId: string): Promise<number> {
+  // Get current time in Asia/Yerevan timezone
+  const now = new Date();
+  const yerevantTimeStr = now.toLocaleString('en-US', { timeZone: 'Asia/Yerevan' });
+  const yerevantNow = new Date(yerevantTimeStr);
+  
+  const { count, error } = await supabase
+    .from('appointments')
+    .select('id', { count: 'exact', head: true })
+    .eq('patient_id', patientId)
+    .eq('doctor_id', doctorId)
+    .in('status', ['PENDING', 'CONFIRMED'])
+    .gt('start_date_time', yerevantNow.toISOString());
+  
+  if (error) {
+    console.error('[BookingLimit] Error checking active bookings:', error);
+    return 0;
+  }
+  
+  console.log(`[BookingLimit] Patient ${patientId} has ${count} active bookings`);
+  return count || 0;
+}
+
 // ============ SESSION PERSISTENCE ============
 
 async function getSession(supabase: any, telegramUserId: number): Promise<TelegramSession> {
@@ -378,8 +404,10 @@ serve(async (req) => {
       // Handle based on current step
       switch (session.step) {
         case 'awaiting_language':
-          // User sent text instead of clicking button - show language selection again
-          console.log(`[Flow] ${userId}: awaiting_language, re-showing language buttons`);
+          // User sent text instead of clicking button - prompt to use buttons
+          console.log(`[Flow] ${userId}: awaiting_language, prompting to use buttons`);
+          // Show a generic "use buttons" prompt in both languages since we don't know their preference yet
+          await sendTelegramMessage(botToken, chatId, `${translations.RU.useButtonsPrompt}\n${translations.ARM.useButtonsPrompt}`);
           const keyboard = {
             inline_keyboard: [
               [{ text: "🇦🇲 Hayeren", callback_data: "lang_arm" }, { text: "🇷🇺 Русский", callback_data: "lang_ru" }]
@@ -468,8 +496,9 @@ serve(async (req) => {
         case 'awaiting_date':
         case 'awaiting_time':
         case 'awaiting_confirmation':
-          // User sent text when buttons expected - resend appropriate menu
-          console.log(`[Flow] ${userId}: unexpected text at step=${session.step}, re-showing menu`);
+          // User sent text when buttons expected - send "use buttons" prompt and resend appropriate menu
+          console.log(`[Flow] ${userId}: unexpected text at step=${session.step}, prompting to use buttons`);
+          await sendTelegramMessage(botToken, chatId, t.useButtonsPrompt);
           if (session.step === 'awaiting_date') await showDatesMenu(supabase, botToken, chatId, session, doctor);
           else if (session.step === 'awaiting_time') await showTimeSlotsMenu(supabase, botToken, chatId, session, doctor);
           else if (session.step === 'awaiting_confirmation') await showConfirmation(supabase, botToken, chatId, session, doctor);
@@ -510,6 +539,16 @@ serve(async (req) => {
 async function showServicesMenu(supabase: any, botToken: string, chatId: number, session: TelegramSession, doctor: any) {
   const lang = session.language || 'RU';
   const t = translations[lang];
+
+  // Check booking limit before showing services
+  if (session.patient_id) {
+    const activeCount = await getActiveBookingsCount(supabase, session.patient_id, doctor.id);
+    if (activeCount >= MAX_ACTIVE_BOOKINGS) {
+      console.log(`[BookingLimit] Patient ${session.patient_id} has reached max bookings (${activeCount})`);
+      await sendTelegramMessage(botToken, chatId, t.maxBookingsReached);
+      return;
+    }
+  }
 
   const { data: services } = await supabase
     .from('services')
