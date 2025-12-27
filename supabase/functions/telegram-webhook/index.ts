@@ -85,7 +85,7 @@ async function answerCallbackQuery(botToken: string, callbackQueryId: string, te
   });
 }
 
-function getAvailableDates(workDays?: string[]): string[] {
+function getAvailableDates(workDays?: string[], blockedDates?: Set<string>): string[] {
   const dates: string[] = [];
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -96,8 +96,13 @@ function getAvailableDates(workDays?: string[]): string[] {
   for (let i = 1; i <= 21; i++) {
     const date = new Date(today);
     date.setDate(date.getDate() + i);
+    const dateStr = date.toISOString().split('T')[0];
+    // Skip blocked days
+    if (blockedDates?.has(dateStr)) {
+      continue;
+    }
     if (validDays.has(date.getDay())) {
-      dates.push(date.toISOString().split('T')[0]);
+      dates.push(dateStr);
       if (dates.length >= 14) break;
     }
   }
@@ -292,7 +297,7 @@ serve(async (req) => {
             session.step = 'awaiting_date';
             await updateSession(supabase, session);
             console.log(`[Flow] ${userId}: service=${svc.id} -> awaiting_date`);
-            await showDatesMenu(botToken, chatId, session, doctor);
+            await showDatesMenu(supabase, botToken, chatId, session, doctor);
           }
         }
         return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -456,8 +461,8 @@ serve(async (req) => {
           session.duration_minutes = 30; // default for custom
           session.step = 'awaiting_date';
           await updateSession(supabase, session);
-          console.log(`[Flow] ${userId}: custom reason="${text}" -> awaiting_date`);
-          await showDatesMenu(botToken, chatId, session, doctor);
+        console.log(`[Flow] ${userId}: custom reason="${text}" -> awaiting_date`);
+          await showDatesMenu(supabase, botToken, chatId, session, doctor);
           break;
 
         case 'awaiting_date':
@@ -465,7 +470,7 @@ serve(async (req) => {
         case 'awaiting_confirmation':
           // User sent text when buttons expected - resend appropriate menu
           console.log(`[Flow] ${userId}: unexpected text at step=${session.step}, re-showing menu`);
-          if (session.step === 'awaiting_date') await showDatesMenu(botToken, chatId, session, doctor);
+          if (session.step === 'awaiting_date') await showDatesMenu(supabase, botToken, chatId, session, doctor);
           else if (session.step === 'awaiting_time') await showTimeSlotsMenu(supabase, botToken, chatId, session, doctor);
           else if (session.step === 'awaiting_confirmation') await showConfirmation(supabase, botToken, chatId, session, doctor);
           break;
@@ -522,10 +527,28 @@ async function showServicesMenu(supabase: any, botToken: string, chatId: number,
   await sendTelegramMessage(botToken, chatId, t.chooseService, { inline_keyboard: buttons });
 }
 
-async function showDatesMenu(botToken: string, chatId: number, session: TelegramSession, doctor: any) {
+async function showDatesMenu(supabase: any, botToken: string, chatId: number, session: TelegramSession, doctor: any) {
   const lang = session.language || 'RU';
   const t = translations[lang];
-  const dates = getAvailableDates(doctor.work_days as string[] | undefined);
+
+  // Fetch blocked days for this doctor
+  const { data: blockedDays } = await supabase
+    .from('blocked_days')
+    .select('blocked_date')
+    .eq('doctor_id', doctor.id);
+  
+  const blockedDatesSet = new Set<string>(
+    (blockedDays || []).map((bd: any) => bd.blocked_date)
+  );
+  
+  console.log(`[Dates] Blocked dates for doctor ${doctor.id}:`, Array.from(blockedDatesSet));
+  
+  const dates = getAvailableDates(doctor.work_days as string[] | undefined, blockedDatesSet);
+
+  if (dates.length === 0) {
+    await sendTelegramMessage(botToken, chatId, t.noDatesAvailable || (lang === 'ARM' ? 'Հասdelays չdelays' : 'Нет доступных дат'));
+    return;
+  }
 
   const rows: { text: string; callback_data: string }[][] = [];
   for (let i = 0; i < dates.length; i += 3) {
@@ -589,7 +612,7 @@ async function showTimeSlotsMenu(supabase: any, botToken: string, chatId: number
     await sendTelegramMessage(botToken, chatId, t.noSlots);
     session.step = 'awaiting_date';
     await supabase.from('telegram_sessions').upsert(session);
-    await showDatesMenu(botToken, chatId, session, doctor);
+    await showDatesMenu(supabase, botToken, chatId, session, doctor);
     return;
   }
 

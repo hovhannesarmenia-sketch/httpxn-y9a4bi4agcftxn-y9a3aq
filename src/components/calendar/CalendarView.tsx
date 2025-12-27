@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Clock, User, Plus } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { ChevronLeft, ChevronRight, Clock, User, Plus, CalendarOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
@@ -10,6 +10,7 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSam
 import { ru, hy } from 'date-fns/locale';
 import { AppointmentDialog } from './AppointmentDialog';
 import { ManualBookingDialog } from './ManualBookingDialog';
+import { BlockedDaysManager } from './BlockedDaysManager';
 
 type Appointment = {
   id: string;
@@ -28,35 +29,32 @@ type Appointment = {
   } | null;
 };
 
+type BlockedDay = {
+  id: string;
+  blocked_date: string;
+  reason: string | null;
+};
+
 export function CalendarView() {
   const { t, language } = useLanguage();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [blockedDays, setBlockedDays] = useState<BlockedDay[]>([]);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [bookingDialogOpen, setBookingDialogOpen] = useState(false);
+  
+  // Multi-select for blocking days
+  const [selectedDatesForBlocking, setSelectedDatesForBlocking] = useState<Date[]>([]);
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
 
   const locale = language === 'ARM' ? hy : ru;
 
-  useEffect(() => {
-    fetchAppointments();
+  // Create a set of blocked date strings for quick lookup
+  const blockedDatesSet = new Set(blockedDays.map(bd => bd.blocked_date));
 
-    const channel = supabase
-      .channel('appointments-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'appointments' },
-        () => fetchAppointments()
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [currentMonth]);
-
-  const fetchAppointments = async () => {
+  const fetchAppointments = useCallback(async () => {
     const start = startOfMonth(currentMonth);
     const end = endOfMonth(currentMonth);
 
@@ -85,7 +83,49 @@ export function CalendarView() {
     if (!error && data) {
       setAppointments(data as Appointment[]);
     }
-  };
+  }, [currentMonth]);
+
+  const fetchBlockedDays = useCallback(async () => {
+    const { data: doctor } = await supabase.from('doctor').select('id').limit(1).maybeSingle();
+    if (!doctor) return;
+
+    const { data, error } = await supabase
+      .from('blocked_days')
+      .select('id, blocked_date, reason')
+      .eq('doctor_id', doctor.id);
+
+    if (!error && data) {
+      setBlockedDays(data);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAppointments();
+    fetchBlockedDays();
+
+    const appointmentsChannel = supabase
+      .channel('appointments-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'appointments' },
+        () => fetchAppointments()
+      )
+      .subscribe();
+
+    const blockedDaysChannel = supabase
+      .channel('blocked-days-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'blocked_days' },
+        () => fetchBlockedDays()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(appointmentsChannel);
+      supabase.removeChannel(blockedDaysChannel);
+    };
+  }, [currentMonth, fetchAppointments, fetchBlockedDays]);
 
   const getDaysInMonth = () => {
     const start = startOfMonth(currentMonth);
@@ -106,7 +146,55 @@ export function CalendarView() {
     return 'calendar-day-busy-3';
   };
 
+  const isDateBlocked = (date: Date) => {
+    const dateStr = format(date, 'yyyy-MM-dd');
+    return blockedDatesSet.has(dateStr);
+  };
+
+  const getBlockedDayInfo = (date: Date): BlockedDay | undefined => {
+    const dateStr = format(date, 'yyyy-MM-dd');
+    return blockedDays.find(bd => bd.blocked_date === dateStr);
+  };
+
+  const handleDateClick = (date: Date, event: React.MouseEvent) => {
+    // Check for Ctrl/Cmd key for multi-select
+    if (event.ctrlKey || event.metaKey) {
+      setIsMultiSelectMode(true);
+      setSelectedDatesForBlocking(prev => {
+        const dateStr = format(date, 'yyyy-MM-dd');
+        const isAlreadySelected = prev.some(d => format(d, 'yyyy-MM-dd') === dateStr);
+        if (isAlreadySelected) {
+          return prev.filter(d => format(d, 'yyyy-MM-dd') !== dateStr);
+        }
+        return [...prev, date];
+      });
+    } else if (isMultiSelectMode) {
+      // If in multi-select mode but no ctrl, add to selection
+      setSelectedDatesForBlocking(prev => {
+        const dateStr = format(date, 'yyyy-MM-dd');
+        const isAlreadySelected = prev.some(d => format(d, 'yyyy-MM-dd') === dateStr);
+        if (isAlreadySelected) {
+          return prev.filter(d => format(d, 'yyyy-MM-dd') !== dateStr);
+        }
+        return [...prev, date];
+      });
+    } else {
+      // Normal click - select single date
+      setSelectedDate(date);
+    }
+  };
+
+  const clearBlockingSelection = () => {
+    setSelectedDatesForBlocking([]);
+    setIsMultiSelectMode(false);
+  };
+
+  const isDateSelectedForBlocking = (date: Date) => {
+    return selectedDatesForBlocking.some(d => isSameDay(d, date));
+  };
+
   const dayAppointments = selectedDate ? getAppointmentsForDay(selectedDate) : [];
+  const selectedDateBlockedInfo = selectedDate ? getBlockedDayInfo(selectedDate) : undefined;
 
   const handleAppointmentClick = (apt: Appointment) => {
     setSelectedAppointment(apt);
@@ -114,186 +202,235 @@ export function CalendarView() {
   };
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-      {/* Calendar */}
-      <Card className="xl:col-span-2 medical-card">
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-xl font-semibold">
-            {format(currentMonth, 'LLLL yyyy', { locale })}
-          </CardTitle>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setCurrentMonth(new Date());
-                setSelectedDate(new Date());
-              }}
-            >
-              {t('calendar.today')}
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {/* Weekday Headers */}
-          <div className="grid grid-cols-7 mb-2">
-            {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map((day, i) => (
-              <div
-                key={i}
-                className="text-center text-sm font-medium text-muted-foreground py-2"
+    <div className="space-y-4">
+      {/* Blocked Days Manager - shows when dates are selected for blocking */}
+      <BlockedDaysManager
+        selectedDates={selectedDatesForBlocking}
+        onClearSelection={clearBlockingSelection}
+        onBlockedDaysChange={fetchBlockedDays}
+        blockedDates={blockedDatesSet}
+      />
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        {/* Calendar */}
+        <Card className="xl:col-span-2 medical-card">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-xl font-semibold">
+              {format(currentMonth, 'LLLL yyyy', { locale })}
+            </CardTitle>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
               >
-                {day}
-              </div>
-            ))}
-          </div>
-
-          {/* Calendar Grid */}
-          <div className="grid grid-cols-7 gap-1">
-            {/* Empty cells for days before start of month */}
-            {Array.from({ length: (startOfMonth(currentMonth).getDay() + 6) % 7 }).map((_, i) => (
-              <div key={`empty-${i}`} className="aspect-square" />
-            ))}
-
-            {getDaysInMonth().map((date) => {
-              const dayAppointments = getAppointmentsForDay(date);
-              const confirmedCount = dayAppointments.filter(
-                (a) => a.status === 'CONFIRMED'
-              ).length;
-              const pendingCount = dayAppointments.filter(
-                (a) => a.status === 'PENDING'
-              ).length;
-
-              return (
-                <button
-                  key={date.toISOString()}
-                  onClick={() => setSelectedDate(date)}
-                  className={cn(
-                    'aspect-square p-1 rounded-lg transition-all relative group',
-                    'hover:ring-2 hover:ring-primary/50',
-                    getAppointmentCountClass(confirmedCount),
-                    selectedDate && isSameDay(date, selectedDate) && 'ring-2 ring-primary',
-                    isToday(date) && 'font-bold',
-                    !isSameMonth(date, currentMonth) && 'opacity-50'
-                  )}
-                >
-                  <span className={cn(
-                    'text-sm',
-                    isToday(date) && 'text-primary'
-                  )}>
-                    {format(date, 'd')}
-                  </span>
-                  {(confirmedCount > 0 || pendingCount > 0) && (
-                    <div className="absolute bottom-1 left-1/2 -translate-x-1/2 flex gap-0.5">
-                      {confirmedCount > 0 && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-success" />
-                      )}
-                      {pendingCount > 0 && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-pending animate-pulse-gentle" />
-                      )}
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Day Appointments */}
-      <Card className="medical-card">
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-lg font-semibold">
-                {selectedDate ? format(selectedDate, 'd MMMM', { locale }) : t('calendar.title')}
-              </CardTitle>
-              <p className="text-sm text-muted-foreground">
-                {dayAppointments.length} {t('calendar.appointments')}
-              </p>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setCurrentMonth(new Date());
+                  setSelectedDate(new Date());
+                }}
+              >
+                {t('calendar.today')}
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
             </div>
-            <Button
-              size="sm"
-              onClick={() => setBookingDialogOpen(true)}
-              className="gap-1"
-            >
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">{language === 'ARM' ? 'Nor' : 'Новая'}</span>
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-3 max-h-[500px] overflow-y-auto scrollbar-thin">
-          {dayAppointments.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">
-              {t('calendar.noAppointments')}
+          </CardHeader>
+          <CardContent>
+            {/* Multi-select hint */}
+            <p className="text-xs text-muted-foreground mb-3">
+              {language === 'ARM' 
+                ? 'Սеpays Ctrl + click дdelays delays delay' 
+                : 'Ctrl + клик для выбора нескольких дней для блокировки'}
             </p>
-          ) : (
-            dayAppointments.map((apt) => (
-              <button
-                key={apt.id}
-                onClick={() => handleAppointmentClick(apt)}
-                className="w-full text-left p-3 rounded-lg border bg-card hover:shadow-md transition-all animate-fade-in"
-              >
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <div className="flex items-center gap-2 text-sm font-medium">
-                    <Clock className="h-4 w-4 text-primary" />
-                    {format(new Date(apt.start_date_time), 'HH:mm')}
-                    <span className="text-muted-foreground">
-                      ({apt.duration_minutes} {t('appointment.minutes')})
+
+            {/* Weekday Headers */}
+            <div className="grid grid-cols-7 mb-2">
+              {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map((day, i) => (
+                <div
+                  key={i}
+                  className="text-center text-sm font-medium text-muted-foreground py-2"
+                >
+                  {day}
+                </div>
+              ))}
+            </div>
+
+            {/* Calendar Grid */}
+            <div className="grid grid-cols-7 gap-1">
+              {/* Empty cells for days before start of month */}
+              {Array.from({ length: (startOfMonth(currentMonth).getDay() + 6) % 7 }).map((_, i) => (
+                <div key={`empty-${i}`} className="aspect-square" />
+              ))}
+
+              {getDaysInMonth().map((date) => {
+                const dayAppointments = getAppointmentsForDay(date);
+                const confirmedCount = dayAppointments.filter(
+                  (a) => a.status === 'CONFIRMED'
+                ).length;
+                const pendingCount = dayAppointments.filter(
+                  (a) => a.status === 'PENDING'
+                ).length;
+                const blocked = isDateBlocked(date);
+                const selectedForBlocking = isDateSelectedForBlocking(date);
+
+                return (
+                  <button
+                    key={date.toISOString()}
+                    onClick={(e) => handleDateClick(date, e)}
+                    className={cn(
+                      'aspect-square p-1 rounded-lg transition-all relative group',
+                      'hover:ring-2 hover:ring-primary/50',
+                      !blocked && getAppointmentCountClass(confirmedCount),
+                      selectedDate && isSameDay(date, selectedDate) && !selectedForBlocking && 'ring-2 ring-primary',
+                      isToday(date) && 'font-bold',
+                      !isSameMonth(date, currentMonth) && 'opacity-50',
+                      blocked && 'bg-destructive/20 hover:bg-destructive/30',
+                      selectedForBlocking && 'ring-2 ring-destructive bg-destructive/10'
+                    )}
+                  >
+                    <span className={cn(
+                      'text-sm',
+                      isToday(date) && 'text-primary',
+                      blocked && 'text-destructive'
+                    )}>
+                      {format(date, 'd')}
+                    </span>
+                    
+                    {/* Blocked indicator */}
+                    {blocked && (
+                      <CalendarOff className="absolute top-0.5 right-0.5 h-3 w-3 text-destructive" />
+                    )}
+                    
+                    {/* Appointment indicators */}
+                    {!blocked && (confirmedCount > 0 || pendingCount > 0) && (
+                      <div className="absolute bottom-1 left-1/2 -translate-x-1/2 flex gap-0.5">
+                        {confirmedCount > 0 && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-success" />
+                        )}
+                        {pendingCount > 0 && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-pending animate-pulse-gentle" />
+                        )}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Day Appointments */}
+        <Card className="medical-card">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-lg font-semibold">
+                  {selectedDate ? format(selectedDate, 'd MMMM', { locale }) : t('calendar.title')}
+                </CardTitle>
+                {selectedDateBlockedInfo ? (
+                  <div className="flex items-center gap-1 text-sm text-destructive mt-1">
+                    <CalendarOff className="h-4 w-4" />
+                    <span>
+                      {language === 'ARM' ? 'Delays delay' : 'День заблокирован'}
+                      {selectedDateBlockedInfo.reason && `: ${selectedDateBlockedInfo.reason}`}
                     </span>
                   </div>
-                  <StatusBadge status={apt.status} />
-                </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <User className="h-4 w-4 text-muted-foreground" />
-                  <span>
-                    {apt.patients?.first_name} {apt.patients?.last_name}
-                  </span>
-                </div>
-                {apt.services && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {language === 'ARM' ? apt.services.name_arm : apt.services.name_ru}
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    {dayAppointments.length} {t('calendar.appointments')}
                   </p>
                 )}
-                {apt.custom_reason && (
-                  <p className="text-xs text-muted-foreground mt-1 italic">
-                    {apt.custom_reason}
-                  </p>
-                )}
-              </button>
-            ))
-          )}
-        </CardContent>
-      </Card>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => setBookingDialogOpen(true)}
+                className="gap-1"
+                disabled={selectedDateBlockedInfo !== undefined}
+              >
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">{language === 'ARM' ? 'Nor' : 'Новая'}</span>
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3 max-h-[500px] overflow-y-auto scrollbar-thin">
+            {selectedDateBlockedInfo ? (
+              <div className="text-center py-8">
+                <CalendarOff className="h-12 w-12 text-destructive/50 mx-auto mb-2" />
+                <p className="text-muted-foreground">
+                  {language === 'ARM' 
+                    ? 'Delays delays delay delays delay' 
+                    : 'В этот день запись недоступна'}
+                </p>
+              </div>
+            ) : dayAppointments.length === 0 ? (
+              <p className="text-muted-foreground text-center py-8">
+                {t('calendar.noAppointments')}
+              </p>
+            ) : (
+              dayAppointments.map((apt) => (
+                <button
+                  key={apt.id}
+                  onClick={() => handleAppointmentClick(apt)}
+                  className="w-full text-left p-3 rounded-lg border bg-card hover:shadow-md transition-all animate-fade-in"
+                >
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <Clock className="h-4 w-4 text-primary" />
+                      {format(new Date(apt.start_date_time), 'HH:mm')}
+                      <span className="text-muted-foreground">
+                        ({apt.duration_minutes} {t('appointment.minutes')})
+                      </span>
+                    </div>
+                    <StatusBadge status={apt.status} />
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                    <span>
+                      {apt.patients?.first_name} {apt.patients?.last_name}
+                    </span>
+                  </div>
+                  {apt.services && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {language === 'ARM' ? apt.services.name_arm : apt.services.name_ru}
+                    </p>
+                  )}
+                  {apt.custom_reason && (
+                    <p className="text-xs text-muted-foreground mt-1 italic">
+                      {apt.custom_reason}
+                    </p>
+                  )}
+                </button>
+              ))
+            )}
+          </CardContent>
+        </Card>
 
-      {/* Appointment Dialog */}
-      <AppointmentDialog
-        appointment={selectedAppointment}
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        onUpdate={fetchAppointments}
-      />
+        {/* Appointment Dialog */}
+        <AppointmentDialog
+          appointment={selectedAppointment}
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          onUpdate={fetchAppointments}
+        />
 
-      {/* Manual Booking Dialog */}
-      <ManualBookingDialog
-        open={bookingDialogOpen}
-        onOpenChange={setBookingDialogOpen}
-        selectedDate={selectedDate}
-        onSuccess={fetchAppointments}
-      />
+        {/* Manual Booking Dialog */}
+        <ManualBookingDialog
+          open={bookingDialogOpen}
+          onOpenChange={setBookingDialogOpen}
+          selectedDate={selectedDate}
+          onSuccess={fetchAppointments}
+        />
+      </div>
     </div>
   );
 }

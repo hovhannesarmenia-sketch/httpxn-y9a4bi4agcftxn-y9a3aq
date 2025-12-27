@@ -84,6 +84,38 @@ export type Database = {
           },
         ]
       }
+      blocked_days: {
+        Row: {
+          blocked_date: string
+          created_at: string
+          doctor_id: string
+          id: string
+          reason: string | null
+        }
+        Insert: {
+          blocked_date: string
+          created_at?: string
+          doctor_id: string
+          id?: string
+          reason?: string | null
+        }
+        Update: {
+          blocked_date?: string
+          created_at?: string
+          doctor_id?: string
+          id?: string
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "blocked_days_doctor_id_fkey"
+            columns: ["doctor_id"]
+            isOneToOne: false
+            referencedRelation: "doctor"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       doctor: {
         Row: {
           ai_enabled: boolean | null
