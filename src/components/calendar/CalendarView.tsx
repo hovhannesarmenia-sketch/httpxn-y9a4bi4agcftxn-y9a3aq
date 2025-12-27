@@ -209,6 +209,7 @@ export function CalendarView() {
         onClearSelection={clearBlockingSelection}
         onBlockedDaysChange={fetchBlockedDays}
         blockedDates={blockedDatesSet}
+        onAppointmentsChange={fetchAppointments}
       />
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
