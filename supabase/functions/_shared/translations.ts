@@ -53,7 +53,11 @@ export const botTranslations = {
     // Doctor notifications
     newDoctor: '\uD83D\uDC68\u200D\u2695\uFE0F \u0546\u0578\u0580 \u0563\u0580\u0561\u0576\u0581\u0574\u0561\u0576 \u0570\u0561\u0580\u0581\u0578\u0582\u0574\u0589\n\n\u0540\u056B\u057E\u0561\u0576\u0564\u0589 {patientName}\n\u053E\u0561\u057C\u0561\u0575\u0578\u0582\u0569\u0575\u0578\u0582\u0576\u0589 {service}\n\u0531\u0574\u057D\u0561\u0569\u056B\u057E\u0589 {dateTime}\n\n\u0538\u0576\u057F\u0580\u0565\u0584 \u0563\u0578\u0580\u056E\u0578\u0572\u0578\u0582\u0569\u0575\u0578\u0582\u0576\u0568\u0589',
     confirm: '\u2705 \u0540\u0561\u057D\u057F\u0561\u057F\u0565\u056C',
-    reject: '\u274C \u0544\u0565\u0580\u056A\u0565\u056C',
+    reject: '❌ Մdelays',
+    
+    // Booking limits
+    maxBookingsReached: '⚠️ Դdelays delays 3 delays delays։ Delays delays delay delays delay delay delays, delay delays delay delay',
+    useButtonsPrompt: 'Delays delays delays delay delay delay delay',
   },
 
   RU: {
@@ -102,7 +106,11 @@ export const botTranslations = {
     // Doctor notifications
     newDoctor: '\uD83D\uDC68\u200D\u2695\uFE0F \u041D\u043E\u0432\u0430\u044F \u0437\u0430\u043F\u0438\u0441\u044C:\n\n\u041F\u0430\u0446\u0438\u0435\u043D\u0442: {patientName}\n\u0423\u0441\u043B\u0443\u0433\u0430: {service}\n\u0414\u0430\u0442\u0430: {dateTime}\n\n\u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0435:',
     confirm: '\u2705 \u041F\u043E\u0434\u0442\u0432\u0435\u0440\u0434\u0438\u0442\u044C',
-    reject: '\u274C \u041E\u0442\u043A\u043B\u043E\u043D\u0438\u0442\u044C',
+    reject: '❌ Отклонить',
+    
+    // Booking limits
+    maxBookingsReached: '⚠️ У вас уже есть 3 активные записи. Пожалуйста, сначала завершите или отмените одну из них, а затем запишитесь снова.',
+    useButtonsPrompt: 'Пожалуйста, используйте кнопки, чтобы продолжить.',
   },
 };
 
