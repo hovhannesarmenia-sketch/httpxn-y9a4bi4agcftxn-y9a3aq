@@ -35,7 +35,7 @@ serve(async (req) => {
 
     const lang = doctor.interface_language || "RU";
     const testMessage = lang === "ARM"
-      ? "✅ MedBook: Թdelays haghordagirutyuny hajox ashxатецй!"
+      ? "✅ MedBook\u0589 \u0583\u0578\u0580\u0571\u0576\u0561\u056F\u0561\u0576 \u0570\u0561\u0572\u0578\u0580\u0564\u0561\u0563\u0580\u0578\u0582\u0569\u0575\u0578\u0582\u0576\u0568 \u0570\u0561\u057B\u0578\u0572 \u0561\u0577\u056D\u0561\u057F\u0565\u0581\u0589"
       : "✅ MedBook: Тестовое сообщение успешно отправлено!";
 
     // Remove "bot" prefix if user accidentally included it
