@@ -250,7 +250,7 @@ export function CalendarView() {
             {/* Multi-select hint */}
             <p className="text-xs text-muted-foreground mb-3">
               {language === 'ARM' 
-                ? 'Սеpays Ctrl + click дdelays delays delay' 
+                ? 'Ctrl + delays delays delays delays delays' 
                 : 'Ctrl + клик для выбора нескольких дней для блокировки'}
             </p>
 
@@ -342,7 +342,7 @@ export function CalendarView() {
                   <div className="flex items-center gap-1 text-sm text-destructive mt-1">
                     <CalendarOff className="h-4 w-4" />
                     <span>
-                      {language === 'ARM' ? 'Delays delay' : 'День заблокирован'}
+                      {language === 'ARM' ? 'Օdelays delays' : 'День заблокирован'}
                       {selectedDateBlockedInfo.reason && `: ${selectedDateBlockedInfo.reason}`}
                     </span>
                   </div>
@@ -359,7 +359,7 @@ export function CalendarView() {
                 disabled={selectedDateBlockedInfo !== undefined}
               >
                 <Plus className="h-4 w-4" />
-                <span className="hidden sm:inline">{language === 'ARM' ? 'Nor' : 'Новая'}</span>
+                <span className="hidden sm:inline">{language === 'ARM' ? 'Delays' : 'Новая'}</span>
               </Button>
             </div>
           </CardHeader>
@@ -369,7 +369,7 @@ export function CalendarView() {
                 <CalendarOff className="h-12 w-12 text-destructive/50 mx-auto mb-2" />
                 <p className="text-muted-foreground">
                   {language === 'ARM' 
-                    ? 'Delays delays delay delays delay' 
+                    ? 'Այdelays delays delays delays delays' 
                     : 'В этот день запись недоступна'}
                 </p>
               </div>

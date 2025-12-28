@@ -147,12 +147,12 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
 
   const handleSubmit = async () => {
     if (!doctor) {
-      toast.error(language === 'ARM' ? 'Bzhishk chgtnvets' : 'Врач не найден');
+      toast.error(language === 'ARM' ? 'Բdelays delays delays' : 'Врач не найден');
       return;
     }
 
     if (!appointmentDate || !appointmentTime) {
-      toast.error(language === 'ARM' ? 'Yntreq amsativ u zham' : 'Выберите дату и время');
+      toast.error(language === 'ARM' ? ' Delays delays delays delays delays' : 'Выберите дату и время');
       return;
     }
 
@@ -163,8 +163,8 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
 
       // Create new patient if needed
       if (patientTab === 'new') {
-        if (!newPatientFirstName.trim()) {
-          toast.error(language === 'ARM' ? 'Greq hndikarani anun' : 'Введите имя пациента');
+      if (!newPatientFirstName.trim()) {
+          toast.error(language === 'ARM' ? 'Գdelays delays delays' : 'Введите имя пациента');
           setIsSubmitting(false);
           return;
         }
@@ -192,7 +192,7 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
       }
 
       if (!patientId) {
-        toast.error(language === 'ARM' ? 'Yntreq hndikarani' : 'Выберите пациента');
+        toast.error(language === 'ARM' ? ' Delays delays' : 'Выберите пациента');
         setIsSubmitting(false);
         return;
       }
@@ -217,20 +217,20 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
 
       if (appointmentError) {
         if (appointmentError.message.includes('overlap')) {
-          toast.error(language === 'ARM' ? 'Zhamy zbaghrtvats e' : 'Время занято другой записью');
+          toast.error(language === 'ARM' ? 'Ժdelays delays delays' : 'Время занято другой записью');
         } else {
           throw appointmentError;
         }
         return;
       }
 
-      toast.success(language === 'ARM' ? 'Granchumy steghtsvets' : 'Запись успешно создана');
+      toast.success(language === 'ARM' ? 'Գdelays delays' : 'Запись успешно создана');
       resetForm();
       onOpenChange(false);
       onSuccess();
     } catch (error) {
       console.error('Error creating appointment:', error);
-      toast.error(language === 'ARM' ? 'Skhalment' : 'Ошибка при создании записи');
+      toast.error(language === 'ARM' ? 'Սdelays delays delays' : 'Ошибка при создании записи');
     } finally {
       setIsSubmitting(false);
     }
@@ -242,7 +242,7 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Plus className="h-5 w-5 text-primary" />
-            {language === 'ARM' ? 'Նdelays Գdelays' : 'Новая запись'}
+            {language === 'ARM' ? 'Նdelays delays' : 'Новая запись'}
           </DialogTitle>
         </DialogHeader>
 
@@ -250,16 +250,16 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
           {/* Patient Selection */}
           <div className="space-y-3">
             <Label className="text-base font-medium">
-              {language === 'ARM' ? 'Hndikar' : 'Пациент'}
+              {language === 'ARM' ? 'Հdelays' : 'Пациент'}
             </Label>
             
             <Tabs value={patientTab} onValueChange={(v) => setPatientTab(v as 'existing' | 'new')}>
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="existing">
-                  {language === 'ARM' ? 'Գdelays delaysdelays delaysdelay' : 'Существующий'}
+                  {language === 'ARM' ? 'Գdelays delays' : 'Существующий'}
                 </TabsTrigger>
                 <TabsTrigger value="new">
-                  {language === 'ARM' ? 'Delays' : 'Новый'}
+                  {language === 'ARM' ? 'Նdelays' : 'Новый'}
                 </TabsTrigger>
               </TabsList>
 
@@ -267,7 +267,7 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder={language === 'ARM' ? 'Vornel...' : 'Поиск по имени или телефону...'}
+                    placeholder={language === 'ARM' ? ' Delays...' : 'Поиск по имени или телефону...'}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-10"
@@ -276,7 +276,7 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
                 
                 <Select value={selectedPatientId} onValueChange={setSelectedPatientId}>
                   <SelectTrigger>
-                    <SelectValue placeholder={language === 'ARM' ? 'Yntreq hndikarani' : 'Выберите пациента'} />
+                    <SelectValue placeholder={language === 'ARM' ? ' Delays delays' : 'Выберите пациента'} />
                   </SelectTrigger>
                   <SelectContent>
                     {filteredPatients.map((patient) => (
@@ -297,26 +297,26 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
               <TabsContent value="new" className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label>{language === 'ARM' ? 'Anun' : 'Имя'} *</Label>
+                    <Label>{language === 'ARM' ? 'Անdelays' : 'Имя'} *</Label>
                     <Input
                       value={newPatientFirstName}
                       onChange={(e) => setNewPatientFirstName(e.target.value)}
-                      placeholder={language === 'ARM' ? 'Anun' : 'Имя'}
+                      placeholder={language === 'ARM' ? 'Delays' : 'Имя'}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>{language === 'ARM' ? 'Azganun' : 'Фамилия'}</Label>
+                    <Label>{language === 'ARM' ? 'Delays' : 'Фамилия'}</Label>
                     <Input
                       value={newPatientLastName}
                       onChange={(e) => setNewPatientLastName(e.target.value)}
-                      placeholder={language === 'ARM' ? 'Azganun' : 'Фамилия'}
+                      placeholder={language === 'ARM' ? 'Delays' : 'Фамилия'}
                     />
                   </div>
                 </div>
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <Phone className="h-4 w-4" />
-                    {language === 'ARM' ? 'Herakhos' : 'Телефон'}
+                    {language === 'ARM' ? 'Հdelays' : 'Телефон'}
                   </Label>
                   <Input
                     value={newPatientPhone}
@@ -330,15 +330,15 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
 
           {/* Service Selection */}
           <div className="space-y-2">
-            <Label>{language === 'ARM' ? 'Tsarrayutyun' : 'Услуга'}</Label>
+            <Label>{language === 'ARM' ? ' Delays' : 'Услуга'}</Label>
             <Select value={selectedServiceId} onValueChange={setSelectedServiceId}>
               <SelectTrigger>
-                <SelectValue placeholder={language === 'ARM' ? 'Yntreq (oche pahtakan)' : 'Выберите услугу (необязательно)'} />
+                <SelectValue placeholder={language === 'ARM' ? 'Ընdelays (delays delays)' : 'Выберите услугу (необязательно)'} />
               </SelectTrigger>
               <SelectContent>
                 {services.map((service) => (
                   <SelectItem key={service.id} value={service.id}>
-                    {language === 'ARM' ? service.name_arm : service.name_ru} ({service.default_duration_minutes} мин)
+                    {language === 'ARM' ? service.name_arm : service.name_ru} ({service.default_duration_minutes} {language === 'ARM' ? 'delays' : 'мин'})
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -350,7 +350,7 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
                 <CalendarIcon className="h-4 w-4" />
-                {language === 'ARM' ? 'Amsativ' : 'Дата'}
+                {language === 'ARM' ? 'Delays' : 'Дата'}
               </Label>
               <Popover>
                 <PopoverTrigger asChild>
@@ -361,7 +361,7 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
                       !appointmentDate && 'text-muted-foreground'
                     )}
                   >
-                    {appointmentDate ? format(appointmentDate, 'PPP', { locale }) : (language === 'ARM' ? 'Yntreq amsativ' : 'Выберите дату')}
+                    {appointmentDate ? format(appointmentDate, 'PPP', { locale }) : (language === 'ARM' ? 'Delays delays' : 'Выберите дату')}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
@@ -379,11 +379,11 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
                 <Clock className="h-4 w-4" />
-                {language === 'ARM' ? 'Zham' : 'Время'}
+                {language === 'ARM' ? ' Delays' : 'Время'}
               </Label>
               <Select value={appointmentTime} onValueChange={setAppointmentTime}>
                 <SelectTrigger>
-                  <SelectValue placeholder={language === 'ARM' ? 'Yntreq' : 'Выберите'} />
+                  <SelectValue placeholder={language === 'ARM' ? ' Delays' : 'Выберите'} />
                 </SelectTrigger>
                 <SelectContent>
                   {generateTimeSlots().map((time) => (
@@ -398,7 +398,7 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
 
           {/* Duration */}
           <div className="space-y-2">
-            <Label>{language === 'ARM' ? 'Tevoghutyun (rope)' : 'Длительность (минуты)'}</Label>
+            <Label>{language === 'ARM' ? 'Տdelays (delays)' : 'Длительность (минуты)'}</Label>
             <Select value={duration.toString()} onValueChange={(v) => setDuration(Number(v))}>
               <SelectTrigger>
                 <SelectValue />
@@ -406,7 +406,7 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
               <SelectContent>
                 {[15, 30, 45, 60, 90, 120].map((min) => (
                   <SelectItem key={min} value={min.toString()}>
-                    {min} {language === 'ARM' ? 'rope' : 'мин'}
+                    {min} {language === 'ARM' ? 'delays' : 'мин'}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -415,11 +415,11 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
 
           {/* Custom Reason */}
           <div className="space-y-2">
-            <Label>{language === 'ARM' ? 'Nshumner' : 'Примечание'}</Label>
+            <Label>{language === 'ARM' ? 'Նdelays' : 'Примечание'}</Label>
             <Textarea
               value={customReason}
               onChange={(e) => setCustomReason(e.target.value)}
-              placeholder={language === 'ARM' ? 'Havelvats teghekutyun...' : 'Дополнительная информация...'}
+              placeholder={language === 'ARM' ? 'Delays delays...' : 'Дополнительная информация...'}
               rows={2}
             />
           </div>
@@ -432,7 +432,7 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
               onClick={() => onOpenChange(false)}
               disabled={isSubmitting}
             >
-              {language === 'ARM' ? 'Cheghel' : 'Отмена'}
+              {language === 'ARM' ? 'Չdelays' : 'Отмена'}
             </Button>
             <Button
               className="flex-1"
@@ -440,9 +440,9 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
               disabled={isSubmitting}
             >
               {isSubmitting ? (
-                language === 'ARM' ? 'Steghtsum...' : 'Создание...'
+                language === 'ARM' ? 'Սdelays...' : 'Создание...'
               ) : (
-                language === 'ARM' ? 'Steghtsnel granchum' : 'Создать запись'
+                language === 'ARM' ? 'Սdelays delays' : 'Создать запись'
               )}
             </Button>
           </div>
