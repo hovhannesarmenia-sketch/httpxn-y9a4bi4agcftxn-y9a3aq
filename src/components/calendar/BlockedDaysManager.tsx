@@ -166,10 +166,10 @@ export function BlockedDaysManager({
 
       const message = cancelAppointments && appointmentsOnBlockDays.length > 0
         ? (language === 'ARM' 
-            ? `Օdelays delays, ${appointmentsOnBlockDays.length} delays delays`
+            ? `\u0555\u0580\u0565\u0580\u0568 \u0561\u0580\u0563\u0565\u056C\u0561\u0583\u0561\u056F\u057E\u0565\u0581, ${appointmentsOnBlockDays.length} \u0563\u0580\u0561\u0576\u0581\u0578\u0582\u0574 \u0579\u0565\u0572\u0561\u0580\u056F\u057E\u0565\u0581`
             : `Дни заблокированы, ${appointmentsOnBlockDays.length} записей отменено`)
         : (language === 'ARM' 
-            ? 'Օdelays delays delays' 
+            ? '\u0555\u0580\u0565\u0580\u0568 \u0570\u0561\u057B\u0578\u0572\u0578\u0582\u0569\u0575\u0561\u0574\u0562 \u0561\u0580\u0563\u0565\u056C\u0561\u0583\u0561\u056F\u057E\u0565\u0581' 
             : 'Дни успешно заблокированы');
 
       toast.success(message);
@@ -186,7 +186,7 @@ export function BlockedDaysManager({
       console.error('Error blocking days:', error);
       toast.error(
         language === 'ARM'
-          ? 'Сdelays delays'
+          ? '\u054D\u056D\u0561\u056C \u0561\u0580\u0563\u0565\u056C\u0561\u0583\u0561\u056F\u0574\u0561\u0576 \u056A\u0561\u0574\u0561\u0576\u0561\u056F'
           : 'Ошибка при блокировке дней'
       );
     } finally {
@@ -211,7 +211,7 @@ export function BlockedDaysManager({
 
       toast.success(
         language === 'ARM'
-          ? 'Օdelays delays delays'
+          ? '\u0555\u0580\u0565\u0580\u0568 \u0570\u0561\u057B\u0578\u0572\u0578\u0582\u0569\u0575\u0561\u0574\u0562 \u0561\u057A\u0561\u0580\u0563\u0565\u056C\u0561\u0583\u0561\u056F\u057E\u0565\u0581'
           : 'Дни успешно разблокированы'
       );
       onClearSelection();
@@ -220,7 +220,7 @@ export function BlockedDaysManager({
       console.error('Error unblocking days:', error);
       toast.error(
         language === 'ARM'
-          ? 'Сdelays delays'
+          ? '\u054D\u056D\u0561\u056C \u0561\u057A\u0561\u0580\u0563\u0565\u056C\u0561\u0583\u0561\u056F\u0574\u0561\u0576 \u056A\u0561\u0574\u0561\u0576\u0561\u056F'
           : 'Ошибка при разблокировке дней'
       );
     } finally {
@@ -269,7 +269,7 @@ export function BlockedDaysManager({
       console.error('Error fetching appointments:', error);
       toast.error(
         language === 'ARM'
-          ? 'Сdelays delays'
+          ? '\u054D\u056D\u0561\u056C \u0563\u0580\u0561\u0576\u0581\u0578\u0582\u0574\u0576\u0565\u0580\u056B \u0562\u0565\u057C\u0576\u0574\u0561\u0576 \u056A\u0561\u0574\u0561\u0576\u0561\u056F'
           : 'Ошибка при загрузке записей'
       );
     } finally {
@@ -321,7 +321,7 @@ export function BlockedDaysManager({
       const successCount = appointmentsToCancel.length;
       toast.success(
         language === 'ARM'
-          ? `${successCount} delays delays delays`
+          ? `${successCount} \u0563\u0580\u0561\u0576\u0581\u0578\u0582\u0574 \u0579\u0565\u0572\u0561\u0580\u056F\u057E\u0565\u0581, \u0570\u056B\u057E\u0561\u0576\u0564\u0576\u0565\u0580\u0568 \u056E\u0561\u0576\u0578\u0582\u0581\u057E\u0565\u0581`
           : `${successCount} записей отменено, пациенты уведомлены`
       );
 
@@ -333,7 +333,7 @@ export function BlockedDaysManager({
       console.error('Error mass cancelling:', error);
       toast.error(
         language === 'ARM'
-          ? 'Сdelays delays'
+          ? '\u054D\u056D\u0561\u056C \u0563\u0580\u0561\u0576\u0581\u0578\u0582\u0574\u0576\u0565\u0580\u056B \u0579\u0565\u0572\u0561\u0580\u056F\u0574\u0561\u0576 \u056A\u0561\u0574\u0561\u0576\u0561\u056F'
           : 'Ошибка при отмене записей'
       );
     } finally {
@@ -351,7 +351,7 @@ export function BlockedDaysManager({
     <>
       <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg border flex-wrap">
         <span className="text-sm text-muted-foreground">
-          {language === 'ARM' ? 'Ընdelays delays:' : 'Выбрано дней:'} {selectedDates.length}
+          {language === 'ARM' ? '\u0538\u0576\u057F\u0580\u057E\u0561\u056E \u0585\u0580\u0565\u0580\u056D' : 'Выбрано дней:'} {selectedDates.length}
         </span>
         <div className="flex-1" />
         
@@ -364,7 +364,7 @@ export function BlockedDaysManager({
           className="gap-1 text-destructive border-destructive/50 hover:bg-destructive/10"
         >
           <XCircle className="h-4 w-4" />
-          {language === 'ARM' ? 'Չdelays delays' : 'Отменить записи'}
+          {language === 'ARM' ? '\u0549\u0565\u0572\u0561\u0580\u056F\u0565\u056C \u0563\u0580\u0561\u0576\u0581\u0578\u0582\u0574\u0576\u0565\u0580\u0568' : 'Отменить записи'}
         </Button>
         
         {hasUnblockedDates && (
@@ -376,7 +376,7 @@ export function BlockedDaysManager({
             className="gap-1"
           >
             <CalendarOff className="h-4 w-4" />
-            {language === 'ARM' ? 'Արգdelays' : 'Заблокировать'}
+            {language === 'ARM' ? '\u0531\u0580\u0563\u0565\u056C\u0561\u0583\u0561\u056F\u0565\u056C' : 'Заблокировать'}
           </Button>
         )}
         
@@ -389,12 +389,12 @@ export function BlockedDaysManager({
             className="gap-1"
           >
             <Unlock className="h-4 w-4" />
-            {language === 'ARM' ? 'Apakаблокіrovать' : 'Разблокировать'}
+            {language === 'ARM' ? '\u0531\u057A\u0561\u0580\u0563\u0565\u056C\u0561\u0583\u0561\u056F\u0565\u056C' : 'Разблокировать'}
           </Button>
         )}
         
         <Button variant="ghost" size="sm" onClick={onClearSelection}>
-          {language === 'ARM' ? 'Չегhel' : 'Отмена'}
+          {language === 'ARM' ? '\u0549\u0565\u0572\u0561\u0580\u056F\u0565\u056C' : 'Отмена'}
         </Button>
       </div>
 
@@ -403,14 +403,14 @@ export function BlockedDaysManager({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {language === 'ARM' ? 'Blokаvoрel дни' : 'Заблокировать дни'}
+              {language === 'ARM' ? '\u0555\u0580\u0565\u0580\u056B \u0561\u0580\u0563\u0565\u056C\u0561\u0583\u0561\u056F\u0578\u0582\u0574' : 'Заблокировать дни'}
             </DialogTitle>
           </DialogHeader>
           
           <div className="space-y-4">
             <div>
               <Label className="text-sm text-muted-foreground">
-                {language === 'ARM' ? 'Ынdelays delays:' : 'Выбранные даты:'}
+                {language === 'ARM' ? '\u0538\u0576\u057F\u0580\u057E\u0561\u056E \u0585\u0580\u0565\u0580\u056D' : 'Выбранные даты:'}
               </Label>
               <div className="flex flex-wrap gap-1 mt-1">
                 {selectedDates.slice(0, 10).map(date => (
@@ -437,7 +437,7 @@ export function BlockedDaysManager({
                 id="reason"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder={language === 'ARM' ? 'Օрінak, Отпуск' : 'Например: Отпуск'}
+                placeholder={language === 'ARM' ? '\u0555\u0580\u056B\u0576\u0561\u056F\u055D \u0561\u0580\u0571\u0561\u056F\u0578\u0582\u0580\u0564' : 'Например: Отпуск'}
                 maxLength={100}
               />
             </div>
@@ -453,8 +453,8 @@ export function BlockedDaysManager({
               disabled={isLoading}
             >
               {isLoading 
-                ? (language === 'ARM' ? 'Արdelays...' : 'Блокировка...') 
-                : (language === 'ARM' ? 'Արdelays' : 'Заблокировать')
+                ? (language === 'ARM' ? '\u0531\u0580\u0563\u0565\u056C\u0561\u0583\u0561\u056F\u0578\u0582\u0574...' : 'Блокировка...') 
+                : (language === 'ARM' ? '\u0531\u0580\u0563\u0565\u056C\u0561\u0583\u0561\u056F\u0565\u056C' : 'Заблокировать')
               }
             </Button>
           </DialogFooter>
@@ -467,11 +467,11 @@ export function BlockedDaysManager({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-warning">
               <AlertTriangle className="h-5 w-5 text-amber-500" />
-              {language === 'ARM' ? 'Զգdelays!' : 'Внимание!'}
+              {language === 'ARM' ? '\u0548\u0582\u0577\u0561\u0564\u0580\u0578\u0582\u0569\u0575\u0578\u0582\u0576\u055D' : 'Внимание!'}
             </DialogTitle>
             <DialogDescription>
               {language === 'ARM' 
-                ? 'На выбранные дни есть активные записи. Выберите действие:'
+                ? '\u0538\u0576\u057F\u0580\u057E\u0561\u056E \u0585\u0580\u0565\u0580\u056B\u0576 \u056F\u0561\u0576 \u0561\u056F\u057F\u056B\u057E \u0563\u0580\u0561\u0576\u0581\u0578\u0582\u0574\u0576\u0565\u0580\u0589 \u0538\u0576\u057F\u0580\u0565\u0584 \u0563\u0578\u0580\u056E\u0578\u0572\u0578\u0582\u0569\u0575\u0578\u0582\u0576\u0568\u055D'
                 : 'На выбранные дни есть активные записи. Выберите действие:'}
             </DialogDescription>
           </DialogHeader>
@@ -481,7 +481,7 @@ export function BlockedDaysManager({
             <div>
               <Label className="text-sm font-medium">
                 {language === 'ARM' 
-                  ? `Активных записей: ${appointmentsOnBlockDays.length}`
+                  ? `\u0531\u056F\u057F\u056B\u057E \u0563\u0580\u0561\u0576\u0581\u0578\u0582\u0574\u0576\u0565\u0580\u055D ${appointmentsOnBlockDays.length}`
                   : `Активных записей: ${appointmentsOnBlockDays.length}`}
               </Label>
               <div className="mt-2 max-h-32 overflow-y-auto space-y-1 border rounded p-2 bg-muted/30">
@@ -501,13 +501,13 @@ export function BlockedDaysManager({
             {/* Reason input */}
             <div className="space-y-2">
               <Label htmlFor="blockReason">
-                {language === 'ARM' ? 'Причина' : 'Причина'}
+                {language === 'ARM' ? '\u054A\u0561\u057F\u0573\u0561\u057C' : 'Причина'}
               </Label>
               <Input
                 id="blockReason"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder={language === 'ARM' ? 'Օрінak, Отпуск' : 'Например: Отпуск'}
+                placeholder={language === 'ARM' ? '\u0555\u0580\u056B\u0576\u0561\u056F\u055D \u0561\u0580\u0571\u0561\u056F\u0578\u0582\u0580\u0564' : 'Например: Отпуск'}
                 maxLength={100}
               />
             </div>
@@ -522,7 +522,7 @@ export function BlockedDaysManager({
                 setAppointmentsOnBlockDays([]);
               }}
             >
-              {language === 'ARM' ? 'Չdelays' : 'Отмена'}
+              {language === 'ARM' ? '\u0549\u0565\u0572\u0561\u0580\u056F\u0565\u056C' : 'Отмена'}
             </Button>
             <Button 
               variant="outline" 
@@ -530,7 +530,7 @@ export function BlockedDaysManager({
               disabled={isLoading}
             >
               {language === 'ARM' 
-                ? 'Только заблокировать' 
+                ? '\u0544\u056B\u0561\u0575\u0576 \u0561\u0580\u0563\u0565\u056C\u0561\u0583\u0561\u056F\u0565\u056C' 
                 : 'Только заблокировать'}
             </Button>
             <Button 
@@ -539,9 +539,9 @@ export function BlockedDaysManager({
               disabled={isLoading}
             >
               {isLoading 
-                ? (language === 'ARM' ? 'Выполнение...' : 'Выполнение...') 
+                ? (language === 'ARM' ? '\u053F\u0561\u057F\u0561\u0580\u057E\u0578\u0582\u0574 \u0567...' : 'Выполнение...') 
                 : (language === 'ARM' 
-                    ? 'Заблокировать и отменить записи' 
+                    ? '\u0531\u0580\u0563\u0565\u056C\u0561\u0583\u0561\u056F\u0565\u056C \u0587 \u0579\u0565\u0572\u0561\u0580\u056F\u0565\u056C \u0563\u0580\u0561\u0576\u0581\u0578\u0582\u0574\u0576\u0565\u0580\u0568' 
                     : 'Заблокировать и отменить записи')
               }
             </Button>
@@ -555,11 +555,11 @@ export function BlockedDaysManager({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive">
               <AlertTriangle className="h-5 w-5" />
-              {language === 'ARM' ? 'Масова скасавация' : 'Массовая отмена записей'}
+              {language === 'ARM' ? '\u0544\u0561\u057D\u057D\u0561\u0575\u0561\u056F\u0561\u0576 \u0579\u0565\u0572\u0561\u0580\u056F\u0578\u0582\u0574' : 'Массовая отмена записей'}
             </DialogTitle>
             <DialogDescription>
               {language === 'ARM' 
-                ? 'Всі записи на вибрані дні будуть скасовані, пацієнти отримають сповіщення через Telegram.'
+                ? '\u0538\u0576\u057F\u0580\u057E\u0561\u056E \u0585\u0580\u0565\u0580\u056B \u0562\u0578\u056C\u0578\u0580 \u0563\u0580\u0561\u0576\u0581\u0578\u0582\u0574\u0576\u0565\u0580\u0568 \u056F\u0579\u0565\u0572\u0561\u0580\u056F\u057E\u0565\u0576, \u0587 \u0570\u056B\u057E\u0561\u0576\u0564\u0576\u0565\u0580\u0568 \u056F\u057D\u057F\u0561\u0576\u0561\u0576 \u056E\u0561\u0576\u0578\u0582\u0581\u0578\u0582\u0574 Telegram\u2013\u0578\u0582\u0574\u0589'
                 : 'Все записи на выбранные дни будут отменены, пациенты получат уведомление в Telegram.'}
             </DialogDescription>
           </DialogHeader>
@@ -568,7 +568,7 @@ export function BlockedDaysManager({
             {/* Selected dates */}
             <div>
               <Label className="text-sm text-muted-foreground">
-                {language === 'ARM' ? 'Ынtрvac delays:' : 'Выбранные даты:'}
+                {language === 'ARM' ? '\u0538\u0576\u057F\u0580\u057E\u0561\u056E \u0585\u0580\u0565\u0580\u055D' : 'Выбранные даты:'}
               </Label>
               <div className="flex flex-wrap gap-1 mt-1">
                 {selectedDates.slice(0, 7).map(date => (
@@ -591,7 +591,7 @@ export function BlockedDaysManager({
             <div>
               <Label className="text-sm font-medium">
                 {language === 'ARM' 
-                  ? `Zapisів до скасування: ${appointmentsToCancel.length}`
+                  ? `\u0549\u0565\u0572\u0561\u0580\u056F\u057E\u0565\u056C\u056B\u0584 \u0563\u0580\u0561\u0576\u0581\u0578\u0582\u0574\u0576\u0565\u0580\u055D ${appointmentsToCancel.length}`
                   : `Записей к отмене: ${appointmentsToCancel.length}`}
               </Label>
               {appointmentsToCancel.length > 0 ? (
@@ -610,7 +610,7 @@ export function BlockedDaysManager({
               ) : (
                 <p className="text-sm text-muted-foreground mt-1">
                   {language === 'ARM' 
-                    ? 'Записи для скасування не знайдені'
+                    ? '\u0549\u0565\u0572\u0561\u0580\u056F\u0574\u0561\u0576 \u0570\u0561\u0574\u0561\u0580 \u0563\u0580\u0561\u0576\u0581\u0578\u0582\u0574\u0576\u0565\u0580 \u0579\u0565\u0576 \u0563\u057F\u0576\u057E\u0565\u056C'
                     : 'Записей для отмены не найдено'}
                 </p>
               )}
@@ -620,14 +620,14 @@ export function BlockedDaysManager({
             {appointmentsToCancel.length > 0 && (
               <div className="space-y-2">
                 <Label htmlFor="cancelReason">
-                  {language === 'ARM' ? 'Причина відміни' : 'Причина отмены'}
+                  {language === 'ARM' ? '\u0549\u0565\u0572\u0561\u0580\u056F\u0574\u0561\u0576 \u057A\u0561\u057F\u0573\u0561\u057C' : 'Причина отмены'}
                 </Label>
                 <Textarea
                   id="cancelReason"
                   value={cancelReason}
                   onChange={(e) => setCancelReason(e.target.value)}
                   placeholder={language === 'ARM' 
-                    ? 'Наприклад: Лікар у відпустці' 
+                    ? '\u0555\u0580\u056B\u0576\u0561\u056F\u055D \u0532\u056A\u056B\u0577\u056F\u0568 \u0561\u0580\u0571\u0561\u056F\u0578\u0582\u0580\u0564\u0578\u0582\u0574 \u0567' 
                     : 'Например: Врач в отпуске'}
                   rows={2}
                   maxLength={200}
@@ -638,7 +638,7 @@ export function BlockedDaysManager({
           
           <DialogFooter>
             <Button variant="ghost" onClick={() => setIsCancelDialogOpen(false)}>
-              {language === 'ARM' ? 'Чегhel' : 'Отмена'}
+              {language === 'ARM' ? '\u0549\u0565\u0572\u0561\u0580\u056F\u0565\u056C' : 'Отмена'}
             </Button>
             {appointmentsToCancel.length > 0 && (
               <Button 
@@ -647,9 +647,9 @@ export function BlockedDaysManager({
                 disabled={isLoading}
               >
                 {isLoading 
-                  ? (language === 'ARM' ? 'Скасування...' : 'Отмена...') 
+                  ? (language === 'ARM' ? '\u0549\u0565\u0572\u0561\u0580\u056F\u0578\u0582\u0574 \u0567...' : 'Отмена...') 
                   : (language === 'ARM' 
-                      ? `Скасувати ${appointmentsToCancel.length} записів` 
+                      ? `\u0549\u0565\u0572\u0561\u0580\u056F\u0565\u056C ${appointmentsToCancel.length} \u0563\u0580\u0561\u0576\u0581\u0578\u0582\u0574` 
                       : `Отменить ${appointmentsToCancel.length} записей`)
                 }
               </Button>
