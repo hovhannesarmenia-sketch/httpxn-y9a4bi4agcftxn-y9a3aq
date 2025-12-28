@@ -271,8 +271,8 @@ export function SettingsView() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ARM">Հdelays (Armenian)</SelectItem>
-                    <SelectItem value="RU">Русский (Russian)</SelectItem>
+                    <SelectItem value="ARM">{'\u0540\u0561\u0575\u0565\u0580\u0565\u0576'}</SelectItem>
+                    <SelectItem value="RU">Русский</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
