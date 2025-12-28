@@ -147,12 +147,12 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
 
   const handleSubmit = async () => {
     if (!doctor) {
-      toast.error(language === 'ARM' ? 'Բdelays delays delays' : 'Врач не найден');
+      toast.error(language === 'ARM' ? '\u0532\u056A\u056B\u0577\u056F\u0568 \u0579\u056B \u0563\u057F\u0576\u057E\u0565\u056C' : 'Врач не найден');
       return;
     }
 
     if (!appointmentDate || !appointmentTime) {
-      toast.error(language === 'ARM' ? ' Delays delays delays delays delays' : 'Выберите дату и время');
+      toast.error(language === 'ARM' ? '\u0538\u0576\u057F\u0580\u0565\u0584 \u0561\u0574\u057D\u0561\u0569\u056B\u057E\u0568 \u0587 \u056A\u0561\u0574\u0568' : 'Выберите дату и время');
       return;
     }
 
@@ -164,7 +164,7 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
       // Create new patient if needed
       if (patientTab === 'new') {
       if (!newPatientFirstName.trim()) {
-          toast.error(language === 'ARM' ? 'Գdelays delays delays' : 'Введите имя пациента');
+          toast.error(language === 'ARM' ? '\u0533\u0580\u0565\u0584 \u0570\u056B\u057E\u0561\u0576\u0564\u056B \u0561\u0576\u0578\u0582\u0576\u0568' : 'Введите имя пациента');
           setIsSubmitting(false);
           return;
         }
@@ -192,7 +192,7 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
       }
 
       if (!patientId) {
-        toast.error(language === 'ARM' ? ' Delays delays' : 'Выберите пациента');
+        toast.error(language === 'ARM' ? '\u0538\u0576\u057F\u0580\u0565\u0584 \u0570\u056B\u057E\u0561\u0576\u0564\u056B\u0576' : 'Выберите пациента');
         setIsSubmitting(false);
         return;
       }
@@ -217,20 +217,20 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
 
       if (appointmentError) {
         if (appointmentError.message.includes('overlap')) {
-          toast.error(language === 'ARM' ? 'Ժdelays delays delays' : 'Время занято другой записью');
+          toast.error(language === 'ARM' ? '\u053A\u0561\u0574\u0568 \u0566\u0562\u0561\u0572\u057E\u0561\u056E \u0567' : 'Время занято другой записью');
         } else {
           throw appointmentError;
         }
         return;
       }
 
-      toast.success(language === 'ARM' ? 'Գdelays delays' : 'Запись успешно создана');
+      toast.success(language === 'ARM' ? '\u0533\u0580\u0561\u0576\u0581\u0578\u0582\u0574\u0568 \u057D\u057F\u0565\u0572\u056E\u057E\u0565\u0581' : 'Запись успешно создана');
       resetForm();
       onOpenChange(false);
       onSuccess();
     } catch (error) {
       console.error('Error creating appointment:', error);
-      toast.error(language === 'ARM' ? 'Սdelays delays delays' : 'Ошибка при создании записи');
+      toast.error(language === 'ARM' ? '\u054D\u056D\u0561\u056C \u057D\u057F\u0565\u0572\u056E\u0574\u0561\u0576 \u056A\u0561\u0574\u0561\u0576\u0561\u056F' : 'Ошибка при создании записи');
     } finally {
       setIsSubmitting(false);
     }
@@ -242,7 +242,7 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Plus className="h-5 w-5 text-primary" />
-            {language === 'ARM' ? 'Նdelays delays' : 'Новая запись'}
+            {language === 'ARM' ? '\u0546\u0578\u0580 \u0563\u0580\u0561\u0576\u0581\u0578\u0582\u0574' : 'Новая запись'}
           </DialogTitle>
         </DialogHeader>
 
@@ -250,16 +250,16 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
           {/* Patient Selection */}
           <div className="space-y-3">
             <Label className="text-base font-medium">
-              {language === 'ARM' ? 'Հdelays' : 'Пациент'}
+              {language === 'ARM' ? '\u0540\u056B\u057E\u0561\u0576\u0564' : 'Пациент'}
             </Label>
             
             <Tabs value={patientTab} onValueChange={(v) => setPatientTab(v as 'existing' | 'new')}>
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="existing">
-                  {language === 'ARM' ? 'Գdelays delays' : 'Существующий'}
+                  {language === 'ARM' ? '\u0533\u0580\u0561\u0576\u0581\u057E\u0561\u056E \u0570\u056B\u057E\u0561\u0576\u0564' : 'Существующий'}
                 </TabsTrigger>
                 <TabsTrigger value="new">
-                  {language === 'ARM' ? 'Նdelays' : 'Новый'}
+                  {language === 'ARM' ? '\u0546\u0578\u0580 \u0570\u056B\u057E\u0561\u0576\u0564' : 'Новый'}
                 </TabsTrigger>
               </TabsList>
 
@@ -267,7 +267,7 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder={language === 'ARM' ? ' Delays...' : 'Поиск по имени или телефону...'}
+                    placeholder={language === 'ARM' ? '\u0548\u0580\u0578\u0576\u0565\u056C...' : 'Поиск по имени или телефону...'}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-10"
@@ -276,7 +276,7 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
                 
                 <Select value={selectedPatientId} onValueChange={setSelectedPatientId}>
                   <SelectTrigger>
-                    <SelectValue placeholder={language === 'ARM' ? ' Delays delays' : 'Выберите пациента'} />
+                    <SelectValue placeholder={language === 'ARM' ? '\u0538\u0576\u057F\u0580\u0565\u0584 \u0570\u056B\u057E\u0561\u0576\u0564\u056B\u0576' : 'Выберите пациента'} />
                   </SelectTrigger>
                   <SelectContent>
                     {filteredPatients.map((patient) => (
@@ -297,26 +297,26 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
               <TabsContent value="new" className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label>{language === 'ARM' ? 'Անdelays' : 'Имя'} *</Label>
+                    <Label>{language === 'ARM' ? '\u0531\u0576\u0578\u0582\u0576' : 'Имя'} *</Label>
                     <Input
                       value={newPatientFirstName}
                       onChange={(e) => setNewPatientFirstName(e.target.value)}
-                      placeholder={language === 'ARM' ? 'Delays' : 'Имя'}
+                      placeholder={language === 'ARM' ? '\u0531\u0576\u0578\u0582\u0576' : 'Имя'}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>{language === 'ARM' ? 'Delays' : 'Фамилия'}</Label>
+                    <Label>{language === 'ARM' ? '\u0531\u0566\u0563\u0561\u0576\u0578\u0582\u0576' : 'Фамилия'}</Label>
                     <Input
                       value={newPatientLastName}
                       onChange={(e) => setNewPatientLastName(e.target.value)}
-                      placeholder={language === 'ARM' ? 'Delays' : 'Фамилия'}
+                      placeholder={language === 'ARM' ? '\u0531\u0566\u0563\u0561\u0576\u0578\u0582\u0576' : 'Фамилия'}
                     />
                   </div>
                 </div>
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <Phone className="h-4 w-4" />
-                    {language === 'ARM' ? 'Հdelays' : 'Телефон'}
+                    {language === 'ARM' ? '\u0540\u0565\u057C\u0561\u056D\u0578\u057D' : 'Телефон'}
                   </Label>
                   <Input
                     value={newPatientPhone}
@@ -330,15 +330,15 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
 
           {/* Service Selection */}
           <div className="space-y-2">
-            <Label>{language === 'ARM' ? ' Delays' : 'Услуга'}</Label>
+            <Label>{language === 'ARM' ? '\u053E\u0561\u057C\u0561\u0575\u0578\u0582\u0569\u0575\u0578\u0582\u0576' : 'Услуга'}</Label>
             <Select value={selectedServiceId} onValueChange={setSelectedServiceId}>
               <SelectTrigger>
-                <SelectValue placeholder={language === 'ARM' ? 'Ընdelays (delays delays)' : 'Выберите услугу (необязательно)'} />
+                <SelectValue placeholder={language === 'ARM' ? '\u0538\u0576\u057F\u0580\u0565\u0584 (\u0578\u0579 \u057A\u0561\u0580\u057F\u0561\u0564\u056B\u0580)' : 'Выберите услугу (необязательно)'} />
               </SelectTrigger>
               <SelectContent>
                 {services.map((service) => (
                   <SelectItem key={service.id} value={service.id}>
-                    {language === 'ARM' ? service.name_arm : service.name_ru} ({service.default_duration_minutes} {language === 'ARM' ? 'delays' : 'мин'})
+                    {language === 'ARM' ? service.name_arm : service.name_ru} ({service.default_duration_minutes} {language === 'ARM' ? '\u0580\u0578\u057A\u0565' : 'мин'})
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -350,7 +350,7 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
                 <CalendarIcon className="h-4 w-4" />
-                {language === 'ARM' ? 'Delays' : 'Дата'}
+                {language === 'ARM' ? '\u0531\u0574\u057D\u0561\u0569\u056B\u057E' : 'Дата'}
               </Label>
               <Popover>
                 <PopoverTrigger asChild>
@@ -361,7 +361,7 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
                       !appointmentDate && 'text-muted-foreground'
                     )}
                   >
-                    {appointmentDate ? format(appointmentDate, 'PPP', { locale }) : (language === 'ARM' ? 'Delays delays' : 'Выберите дату')}
+                    {appointmentDate ? format(appointmentDate, 'PPP', { locale }) : (language === 'ARM' ? '\u0538\u0576\u057F\u0580\u0565\u0584 \u0561\u0574\u057D\u0561\u0569\u056B\u057E\u0568' : 'Выберите дату')}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
@@ -379,11 +379,11 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
                 <Clock className="h-4 w-4" />
-                {language === 'ARM' ? ' Delays' : 'Время'}
+                {language === 'ARM' ? '\u053A\u0561\u0574' : 'Время'}
               </Label>
               <Select value={appointmentTime} onValueChange={setAppointmentTime}>
                 <SelectTrigger>
-                  <SelectValue placeholder={language === 'ARM' ? ' Delays' : 'Выберите'} />
+                  <SelectValue placeholder={language === 'ARM' ? '\u0538\u0576\u057F\u0580\u0565\u0584' : 'Выберите'} />
                 </SelectTrigger>
                 <SelectContent>
                   {generateTimeSlots().map((time) => (
@@ -398,7 +398,7 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
 
           {/* Duration */}
           <div className="space-y-2">
-            <Label>{language === 'ARM' ? 'Տdelays (delays)' : 'Длительность (минуты)'}</Label>
+            <Label>{language === 'ARM' ? '\u054F\u0587\u0578\u0572\u0578\u0582\u0569\u0575\u0578\u0582\u0576 (\u0580\u0578\u057A\u0565)' : 'Длительность (минуты)'}</Label>
             <Select value={duration.toString()} onValueChange={(v) => setDuration(Number(v))}>
               <SelectTrigger>
                 <SelectValue />
@@ -406,7 +406,7 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
               <SelectContent>
                 {[15, 30, 45, 60, 90, 120].map((min) => (
                   <SelectItem key={min} value={min.toString()}>
-                    {min} {language === 'ARM' ? 'delays' : 'мин'}
+                    {min} {language === 'ARM' ? '\u0580\u0578\u057A\u0565' : 'мин'}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -415,11 +415,11 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
 
           {/* Custom Reason */}
           <div className="space-y-2">
-            <Label>{language === 'ARM' ? 'Նdelays' : 'Примечание'}</Label>
+            <Label>{language === 'ARM' ? '\u0546\u0577\u0578\u0582\u0574\u0576\u0565\u0580' : 'Примечание'}</Label>
             <Textarea
               value={customReason}
               onChange={(e) => setCustomReason(e.target.value)}
-              placeholder={language === 'ARM' ? 'Delays delays...' : 'Дополнительная информация...'}
+              placeholder={language === 'ARM' ? '\u053C\u0580\u0561\u0581\u0578\u0582\u0581\u056B\u0579 \u057F\u0565\u0572\u0565\u056F\u0578\u0582\u0569\u0575\u0578\u0582\u0576...' : 'Дополнительная информация...'}
               rows={2}
             />
           </div>
@@ -432,7 +432,7 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
               onClick={() => onOpenChange(false)}
               disabled={isSubmitting}
             >
-              {language === 'ARM' ? 'Չdelays' : 'Отмена'}
+              {language === 'ARM' ? '\u0549\u0565\u0572\u0561\u0580\u056F\u0565\u056C' : 'Отмена'}
             </Button>
             <Button
               className="flex-1"
@@ -440,9 +440,9 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
               disabled={isSubmitting}
             >
               {isSubmitting ? (
-                language === 'ARM' ? 'Սdelays...' : 'Создание...'
+                language === 'ARM' ? '\u054D\u057F\u0565\u0572\u056E\u057E\u0578\u0582\u0574 \u0567...' : 'Создание...'
               ) : (
-                language === 'ARM' ? 'Սdelays delays' : 'Создать запись'
+                language === 'ARM' ? '\u054D\u057F\u0565\u0572\u056E\u0565\u056C \u0563\u0580\u0561\u0576\u0581\u0578\u0582\u0574' : 'Создать запись'
               )}
             </Button>
           </div>
