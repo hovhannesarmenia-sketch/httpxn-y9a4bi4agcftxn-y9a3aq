@@ -242,7 +242,7 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Plus className="h-5 w-5 text-primary" />
-            {language === 'ARM' ? 'Nor granchum' : 'Новая запись'}
+            {language === 'ARM' ? 'Նdelays delays Գregistration' : 'Новая запись'}
           </DialogTitle>
         </DialogHeader>
 
