@@ -250,13 +250,16 @@ export function CalendarView() {
             {/* Multi-select hint */}
             <p className="text-xs text-muted-foreground mb-3">
               {language === 'ARM' 
-                ? 'Ctrl + delays delays delays delays delays' 
+                ? 'Ctrl + \u057D\u0565\u0572\u0574\u0565\u056C\u0578\u057E \u056F\u0561\u0580\u0578\u0572 \u0565\u0584 \u0568\u0576\u057F\u0580\u0565\u056C \u0574\u056B \u0584\u0561\u0576\u056B \u0585\u0580' 
                 : 'Ctrl + клик для выбора нескольких дней для блокировки'}
             </p>
 
             {/* Weekday Headers */}
             <div className="grid grid-cols-7 mb-2">
-              {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map((day, i) => (
+              {(language === 'ARM' 
+                ? ['\u0535\u0580\u056F', '\u0535\u0580\u0584', '\u0549\u0580\u0584', '\u0540\u0576\u0563', '\u0548\u0582\u0580', '\u0547\u0562\u0569', '\u053F\u056B\u0580']
+                : ['\u041F\u043D', '\u0412\u0442', '\u0421\u0440', '\u0427\u0442', '\u041F\u0442', '\u0421\u0431', '\u0412\u0441']
+              ).map((day, i) => (
                 <div
                   key={i}
                   className="text-center text-sm font-medium text-muted-foreground py-2"
@@ -342,7 +345,7 @@ export function CalendarView() {
                   <div className="flex items-center gap-1 text-sm text-destructive mt-1">
                     <CalendarOff className="h-4 w-4" />
                     <span>
-                      {language === 'ARM' ? 'Օdelays delays' : 'День заблокирован'}
+                      {language === 'ARM' ? '\u0555\u0580\u0568 \u0561\u0580\u0563\u0565\u056C\u0561\u0583\u0561\u056F\u057E\u0561\u056E \u0567' : 'День заблокирован'}
                       {selectedDateBlockedInfo.reason && `: ${selectedDateBlockedInfo.reason}`}
                     </span>
                   </div>
@@ -359,7 +362,7 @@ export function CalendarView() {
                 disabled={selectedDateBlockedInfo !== undefined}
               >
                 <Plus className="h-4 w-4" />
-                <span className="hidden sm:inline">{language === 'ARM' ? 'Delays' : 'Новая'}</span>
+                <span className="hidden sm:inline">{language === 'ARM' ? '\u0546\u0578\u0580' : 'Новая'}</span>
               </Button>
             </div>
           </CardHeader>
@@ -369,7 +372,7 @@ export function CalendarView() {
                 <CalendarOff className="h-12 w-12 text-destructive/50 mx-auto mb-2" />
                 <p className="text-muted-foreground">
                   {language === 'ARM' 
-                    ? 'Այdelays delays delays delays delays' 
+                    ? '\u0531\u0575\u057D \u0585\u0580\u0568 \u0563\u0580\u0561\u0576\u0581\u0578\u0582\u0574 \u0570\u0576\u0561\u0580\u0561\u057E\u0578\u0580 \u0579\u0567' 
                     : 'В этот день запись недоступна'}
                 </p>
               </div>
