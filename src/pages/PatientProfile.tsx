@@ -68,8 +68,8 @@ function PatientProfileContent() {
   };
 
   const getLanguageLabel = (lang: string | null) => {
-    if (lang === 'ARM') return language === 'ARM' ? 'Հայdelays' : 'Армянский';
-    return language === 'ARM' ? 'Rrdelays' : 'Русский';
+    if (lang === 'ARM') return language === 'ARM' ? '\u0540\u0561\u0575\u0565\u0580\u0565\u0576' : '\u0410\u0440\u043C\u044F\u043D\u0441\u043A\u0438\u0439';
+    return language === 'ARM' ? '\u054C\u0578\u0582\u057D\u0565\u0580\u0565\u0576' : '\u0420\u0443\u0441\u0441\u043A\u0438\u0439';
   };
 
   const getStatusStats = () => {
@@ -96,11 +96,11 @@ function PatientProfileContent() {
           <CardContent className="pt-6 text-center">
             <User className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h2 className="text-lg font-semibold mb-2">
-              {language === 'ARM' ? 'Пdelays չdelays' : 'Пациент не найден'}
+              {language === 'ARM' ? '\u0540\u056B\u057E\u0561\u0576\u0564\u0568 \u0579\u0563\u057F\u0576\u057E\u0565\u0581' : '\u041F\u0430\u0446\u0438\u0435\u043D\u0442 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D'}
             </h2>
             <Button onClick={() => navigate('/')} variant="outline" className="mt-4">
               <ArrowLeft className="h-4 w-4 mr-2" />
-              {language === 'ARM' ? 'Delays' : 'Назад'}
+              {language === 'ARM' ? '\u054E\u0565\u0580\u0561\u0564\u0561\u057C\u0576\u0561\u056C' : '\u041D\u0430\u0437\u0430\u0434'}
             </Button>
           </CardContent>
         </Card>
@@ -121,7 +121,7 @@ function PatientProfileContent() {
               {patient.first_name} {patient.last_name || ''}
             </h1>
             <p className="text-muted-foreground">
-              {language === 'ARM' ? 'Пdelays պdelays' : 'Профиль пациента'}
+              {language === 'ARM' ? '\u0540\u056B\u057E\u0561\u0576\u0564\u056B \u057A\u0580\u0578\u0586\u056B\u056C' : '\u041F\u0440\u043E\u0444\u0438\u043B\u044C \u043F\u0430\u0446\u0438\u0435\u043D\u0442\u0430'}
             </p>
           </div>
         </div>
@@ -131,7 +131,7 @@ function PatientProfileContent() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <User className="h-5 w-5 text-primary" />
-              {language === 'ARM' ? 'Кdelays delays' : 'Контактная информация'}
+              {language === 'ARM' ? '\u053F\u0578\u0576\u057F\u0561\u056F\u057F\u0561\u0575\u056B\u0576 \u057F\u057E\u0575\u0561\u056C\u0576\u0565\u0580' : '\u041A\u043E\u043D\u0442\u0430\u043A\u0442\u043D\u0430\u044F \u0438\u043D\u0444\u043E\u0440\u043C\u0430\u0446\u0438\u044F'}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -141,7 +141,7 @@ function PatientProfileContent() {
                   <User className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">{language === 'ARM' ? 'Аdelays delays' : 'Полное имя'}</p>
+                  <p className="text-xs text-muted-foreground">{language === 'ARM' ? '\u0531\u0576\u0578\u0582\u0576 \u0531\u0566\u0563\u0561\u0576\u0578\u0582\u0576' : '\u041F\u043E\u043B\u043D\u043E\u0435 \u0438\u043C\u044F'}</p>
                   <p className="font-medium">{patient.first_name} {patient.last_name || ''}</p>
                 </div>
               </div>
@@ -151,7 +151,7 @@ function PatientProfileContent() {
                   <Phone className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">{language === 'ARM' ? 'Delays' : 'Телефон'}</p>
+                  <p className="text-xs text-muted-foreground">{language === 'ARM' ? '\u0540\u0565\u057C\u0561\u056D\u0578\u057D' : '\u0422\u0435\u043B\u0435\u0444\u043E\u043D'}</p>
                   <p className="font-medium">{patient.phone_number || '-'}</p>
                 </div>
               </div>
@@ -161,7 +161,7 @@ function PatientProfileContent() {
                   <Globe className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">{language === 'ARM' ? 'Delays' : 'Язык'}</p>
+                  <p className="text-xs text-muted-foreground">{language === 'ARM' ? '\u053C\u0565\u0566\u0578\u0582' : '\u042F\u0437\u044B\u043A'}</p>
                   <p className="font-medium">{getLanguageLabel(patient.language)}</p>
                 </div>
               </div>
@@ -173,7 +173,7 @@ function PatientProfileContent() {
                 <div>
                   <p className="text-xs text-muted-foreground">Telegram ID</p>
                   <p className="font-medium font-mono text-sm">
-                    {patient.telegram_user_id > 0 ? patient.telegram_user_id : (language === 'ARM' ? 'Delays delays' : 'Ручная запись')}
+                    {patient.telegram_user_id > 0 ? patient.telegram_user_id : (language === 'ARM' ? '\u0541\u0565\u057C\u0584\u0578\u057E \u0563\u0580\u0561\u0576\u0581\u0578\u0582\u0574' : '\u0420\u0443\u0447\u043D\u0430\u044F \u0437\u0430\u043F\u0438\u0441\u044C')}
                   </p>
                 </div>
               </div>
@@ -183,7 +183,7 @@ function PatientProfileContent() {
                   <Calendar className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">{language === 'ARM' ? 'Delays delays' : 'Дата регистрации'}</p>
+                  <p className="text-xs text-muted-foreground">{language === 'ARM' ? '\u0533\u0580\u0561\u0576\u0581\u0574\u0561\u0576 \u0561\u0574\u057D\u0561\u0569\u056B\u057E' : '\u0414\u0430\u0442\u0430 \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u0438'}</p>
                   <p className="font-medium">
                     {patient.created_at ? format(new Date(patient.created_at), 'd MMM yyyy', { locale }) : '-'}
                   </p>
@@ -198,25 +198,25 @@ function PatientProfileContent() {
           <Card className="medical-card">
             <CardContent className="pt-6 text-center">
               <p className="text-3xl font-bold text-foreground">{stats.total}</p>
-              <p className="text-sm text-muted-foreground">{language === 'ARM' ? 'Delays delays' : 'Всего записей'}</p>
+              <p className="text-sm text-muted-foreground">{language === 'ARM' ? '\u0538\u0576\u0564\u0561\u0574\u0565\u0576\u0568 \u0563\u0580\u0561\u0576\u0581\u0578\u0582\u0574\u0576\u0565\u0580' : '\u0412\u0441\u0435\u0433\u043E \u0437\u0430\u043F\u0438\u0441\u0435\u0439'}</p>
             </CardContent>
           </Card>
           <Card className="medical-card">
             <CardContent className="pt-6 text-center">
               <p className="text-3xl font-bold text-success">{stats.confirmed}</p>
-              <p className="text-sm text-muted-foreground">{language === 'ARM' ? 'Delays' : 'Подтверждено'}</p>
+              <p className="text-sm text-muted-foreground">{language === 'ARM' ? '\u0540\u0561\u057D\u057F\u0561\u057F\u057E\u0561\u056E' : '\u041F\u043E\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0435\u043D\u043E'}</p>
             </CardContent>
           </Card>
           <Card className="medical-card">
             <CardContent className="pt-6 text-center">
               <p className="text-3xl font-bold text-pending">{stats.pending}</p>
-              <p className="text-sm text-muted-foreground">{language === 'ARM' ? 'Delays' : 'Ожидает'}</p>
+              <p className="text-sm text-muted-foreground">{language === 'ARM' ? '\u054D\u057A\u0561\u057D\u0574\u0561\u0576 \u0574\u0565\u057B' : '\u041E\u0436\u0438\u0434\u0430\u0435\u0442'}</p>
             </CardContent>
           </Card>
           <Card className="medical-card">
             <CardContent className="pt-6 text-center">
               <p className="text-3xl font-bold text-destructive">{stats.cancelled}</p>
-              <p className="text-sm text-muted-foreground">{language === 'ARM' ? 'Delays' : 'Отменено'}</p>
+              <p className="text-sm text-muted-foreground">{language === 'ARM' ? '\u0549\u0565\u0572\u0561\u0580\u056F\u057E\u0561\u056E' : '\u041E\u0442\u043C\u0435\u043D\u0435\u043D\u043E'}</p>
             </CardContent>
           </Card>
         </div>
@@ -226,24 +226,24 @@ function PatientProfileContent() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Calendar className="h-5 w-5 text-primary" />
-              {language === 'ARM' ? 'Delays delays' : 'История записей'}
+              {language === 'ARM' ? '\u0533\u0580\u0561\u0576\u0581\u0578\u0582\u0574\u0576\u0565\u0580\u056B \u057A\u0561\u057F\u0574\u0578\u0582\u0569\u0575\u0578\u0582\u0576' : '\u0418\u0441\u0442\u043E\u0440\u0438\u044F \u0437\u0430\u043F\u0438\u0441\u0435\u0439'}
             </CardTitle>
           </CardHeader>
           <CardContent>
             {appointments.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                {language === 'ARM' ? 'Delays delays' : 'Записей пока нет'}
+                {language === 'ARM' ? '\u0533\u0580\u0561\u0576\u0581\u0578\u0582\u0574\u0576\u0565\u0580 \u0564\u0565\u057C \u0579\u056F\u0561\u0576' : '\u0417\u0430\u043F\u0438\u0441\u0435\u0439 \u043F\u043E\u043A\u0430 \u043D\u0435\u0442'}
               </div>
             ) : (
               <div className="rounded-lg border overflow-hidden">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50">
-                      <TableHead>{language === 'ARM' ? 'Delays' : 'Дата'}</TableHead>
-                      <TableHead>{language === 'ARM' ? 'Delays' : 'Время'}</TableHead>
-                      <TableHead className="hidden md:table-cell">{language === 'ARM' ? 'Delays' : 'Услуга'}</TableHead>
-                      <TableHead>{language === 'ARM' ? 'Delays' : 'Длит.'}</TableHead>
-                      <TableHead>{language === 'ARM' ? 'Delays' : 'Статус'}</TableHead>
+                      <TableHead>{language === 'ARM' ? '\u0531\u0574\u057D\u0561\u0569\u056B\u057E' : '\u0414\u0430\u0442\u0430'}</TableHead>
+                      <TableHead>{language === 'ARM' ? '\u054A\u0561\u0574' : '\u0412\u0440\u0435\u043C\u044F'}</TableHead>
+                      <TableHead className="hidden md:table-cell">{language === 'ARM' ? '\u053E\u0561\u057C\u0561\u0575\u0578\u0582\u0569\u0575\u0578\u0582\u0576' : '\u0423\u0441\u043B\u0443\u0433\u0430'}</TableHead>
+                      <TableHead>{language === 'ARM' ? '\u054F\u0587\u0578\u0572\u0578\u0582\u0569\u0575\u0578\u0582\u0576' : '\u0414\u043B\u0438\u0442.'}</TableHead>
+                      <TableHead>{language === 'ARM' ? '\u053F\u0561\u0580\u0563\u0561\u057E\u056B\u0573\u0561\u056F' : '\u0421\u0442\u0430\u0442\u0443\u0441'}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -270,7 +270,7 @@ function PatientProfileContent() {
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline">
-                              {apt.duration_minutes} {language === 'ARM' ? 'delays' : 'мин'}
+                              {apt.duration_minutes} {language === 'ARM' ? '\u0580\u0578\u057A\u0565' : '\u043C\u0438\u043D'}
                             </Badge>
                           </TableCell>
                           <TableCell>
