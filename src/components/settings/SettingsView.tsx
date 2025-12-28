@@ -271,7 +271,7 @@ export function SettingsView() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ARM">Հայdelays (Armenian)</SelectItem>
+                    <SelectItem value="ARM">Հdelays (Armenian)</SelectItem>
                     <SelectItem value="RU">Русский (Russian)</SelectItem>
                   </SelectContent>
                 </Select>
