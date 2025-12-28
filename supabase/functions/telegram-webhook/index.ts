@@ -109,10 +109,27 @@ function getAvailableDates(workDays?: string[], blockedDates?: Set<string>): str
   return dates;
 }
 
+// Armenian translations for date formatting
+const armenianDays = ['Կdelays', 'Երdelays', 'Delays', 'Չdelays', 'Hdelays', 'Ուdelays', 'Շdelays'];
+const armenianMonths = ['delays', 'փdelays', 'delays', 'delays', 'delays', 'delays', 'delays', 'delays', 'delays', 'delays', 'delays', 'delays'];
+
+// Proper Armenian day names
+const armDayNames = ['\u053F\u056B\u0580', '\u0535\u0580\u056F', '\u0535\u0580\u0584', '\u0549\u0580\u0584', '\u0540\u0576\u0563', '\u0548\u0582\u0580', '\u0547\u0562\u0569'];
+// Proper Armenian month names  
+const armMonthNames = ['\u0570\u0578\u0582\u0576\u057E\u0561\u0580', '\u0583\u0565\u057F\u0580\u057E\u0561\u0580', '\u0574\u0561\u0580\u057F', '\u0561\u057A\u0580\u056B\u056C', '\u0574\u0561\u0575\u056B\u057D', '\u0570\u0578\u0582\u0576\u056B\u057D', '\u0570\u0578\u0582\u056C\u056B\u057D', '\u0585\u0563\u0578\u057D\u057F\u0578\u057D', '\u057D\u0565\u057A\u057F\u0565\u0574\u0562\u0565\u0580', '\u0570\u0578\u056F\u057F\u0565\u0574\u0562\u0565\u0580', '\u0576\u0578\u0575\u0565\u0574\u0562\u0565\u0580', '\u0564\u0565\u056F\u057F\u0565\u0574\u0562\u0565\u0580'];
+
 function formatDateForDisplay(dateStr: string, lang: 'ARM' | 'RU'): string {
   const date = new Date(dateStr + 'T00:00:00');
-  const locale = lang === 'ARM' ? 'hy-AM' : 'ru-RU';
-  return date.toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' });
+  
+  if (lang === 'ARM') {
+    const dayName = armDayNames[date.getDay()];
+    const monthName = armMonthNames[date.getMonth()];
+    const day = date.getDate();
+    return `${dayName}, ${monthName} ${day}`;
+  }
+  
+  // Russian formatting
+  return date.toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
 // ============ BOOKING LIMIT CHECK ============
@@ -387,7 +404,7 @@ serve(async (req) => {
         console.log(`[Flow] ${userId}: /start -> showing language selection`);
         const keyboard = {
           inline_keyboard: [
-            [{ text: "🇦🇲 Hayeren", callback_data: "lang_arm" }, { text: "🇷🇺 Русский", callback_data: "lang_ru" }]
+            [{ text: "\u{1F1E6}\u{1F1F2} \u0540\u0531\u0545\u0535\u0550\u0535\u0546", callback_data: "lang_arm" }, { text: "\u{1F1F7}\u{1F1FA} \u0420\u0443\u0441\u0441\u043A\u0438\u0439", callback_data: "lang_ru" }]
           ]
         };
         await sendTelegramMessage(botToken, chatId, `${translations.RU.welcome}\n${translations.ARM.welcome}`, keyboard);
@@ -410,7 +427,7 @@ serve(async (req) => {
           await sendTelegramMessage(botToken, chatId, `${translations.RU.useButtonsPrompt}\n${translations.ARM.useButtonsPrompt}`);
           const keyboard = {
             inline_keyboard: [
-              [{ text: "🇦🇲 Hayeren", callback_data: "lang_arm" }, { text: "🇷🇺 Русский", callback_data: "lang_ru" }]
+              [{ text: "\u{1F1E6}\u{1F1F2} \u0540\u0531\u0545\u0535\u0550\u0535\u0546", callback_data: "lang_arm" }, { text: "\u{1F1F7}\u{1F1FA} \u0420\u0443\u0441\u0441\u043A\u0438\u0439", callback_data: "lang_ru" }]
             ]
           };
           await sendTelegramMessage(botToken, chatId, `${translations.RU.welcome}\n${translations.ARM.welcome}`, keyboard);
