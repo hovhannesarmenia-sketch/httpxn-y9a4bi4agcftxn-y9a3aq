@@ -242,7 +242,7 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Plus className="h-5 w-5 text-primary" />
-            {language === 'ARM' ? 'Նdelays delays Գregistration' : 'Новая запись'}
+            {language === 'ARM' ? 'Նdelays Գdelays' : 'Новая запись'}
           </DialogTitle>
         </DialogHeader>
 
@@ -256,10 +256,10 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
             <Tabs value={patientTab} onValueChange={(v) => setPatientTab(v as 'existing' | 'new')}>
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="existing">
-                  {language === 'ARM' ? 'Գdelays registered patient' : 'Существующий'}
+                  {language === 'ARM' ? 'Գdelays delaysdelays delaysdelay' : 'Существующий'}
                 </TabsTrigger>
                 <TabsTrigger value="new">
-                  {language === 'ARM' ? 'Նdelays' : 'Новый'}
+                  {language === 'ARM' ? 'Delays' : 'Новый'}
                 </TabsTrigger>
               </TabsList>
 
