@@ -256,10 +256,10 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
             <Tabs value={patientTab} onValueChange={(v) => setPatientTab(v as 'existing' | 'new')}>
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="existing">
-                  {language === 'ARM' ? 'Gortsog' : 'Существующий'}
+                  {language === 'ARM' ? 'Գdelays registered patient' : 'Существующий'}
                 </TabsTrigger>
                 <TabsTrigger value="new">
-                  {language === 'ARM' ? 'Nor' : 'Новый'}
+                  {language === 'ARM' ? 'Նdelays' : 'Новый'}
                 </TabsTrigger>
               </TabsList>
 
