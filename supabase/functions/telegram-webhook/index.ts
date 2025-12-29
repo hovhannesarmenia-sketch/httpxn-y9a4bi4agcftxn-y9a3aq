@@ -119,17 +119,55 @@ const armDayNames = ['\u053F\u056B\u0580', '\u0535\u0580\u056F', '\u0535\u0580\u
 const armMonthNames = ['\u0570\u0578\u0582\u0576\u057E\u0561\u0580', '\u0583\u0565\u057F\u0580\u057E\u0561\u0580', '\u0574\u0561\u0580\u057F', '\u0561\u057A\u0580\u056B\u056C', '\u0574\u0561\u0575\u056B\u057D', '\u0570\u0578\u0582\u0576\u056B\u057D', '\u0570\u0578\u0582\u056C\u056B\u057D', '\u0585\u0563\u0578\u057D\u057F\u0578\u057D', '\u057D\u0565\u057A\u057F\u0565\u0574\u0562\u0565\u0580', '\u0570\u0578\u056F\u057F\u0565\u0574\u0562\u0565\u0580', '\u0576\u0578\u0575\u0565\u0574\u0562\u0565\u0580', '\u0564\u0565\u056F\u057F\u0565\u0574\u0562\u0565\u0580'];
 
 function formatDateForDisplay(dateStr: string, lang: 'ARM' | 'RU'): string {
-  const date = new Date(dateStr + 'T00:00:00');
+  // Parse as local date (not UTC) by creating date from parts
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
   
   if (lang === 'ARM') {
     const dayName = armDayNames[date.getDay()];
     const monthName = armMonthNames[date.getMonth()];
-    const day = date.getDate();
     return `${dayName}, ${monthName} ${day}`;
   }
   
+  // Russian formatting - use explicit formatting to avoid timezone issues
+  const ruDayNames = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+  const ruMonthNames = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+  return `${ruDayNames[date.getDay()]}, ${day} ${ruMonthNames[date.getMonth()]}`;
+}
+
+// Format datetime from DB (Asia/Yerevan) for display in Telegram messages
+function formatDateTimeForTelegram(startDateTime: string, lang: 'ARM' | 'RU'): string {
+  // The DB stores timestamps as Asia/Yerevan local time (e.g., "2026-01-05T15:00:00")
+  // We need to display the same wall-clock time, not convert to server timezone
+  
+  // Parse the ISO string to extract date and time parts directly
+  const match = startDateTime.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+  if (!match) {
+    return startDateTime; // fallback
+  }
+  
+  const [, yearStr, monthStr, dayStr, hourStr, minuteStr] = match;
+  const year = parseInt(yearStr);
+  const month = parseInt(monthStr);
+  const day = parseInt(dayStr);
+  const hour = parseInt(hourStr);
+  const minute = parseInt(minuteStr);
+  
+  // Create date for day-of-week calculation (local, not UTC)
+  const date = new Date(year, month - 1, day);
+  
+  const timeStr = `${hourStr}:${minuteStr}`;
+  
+  if (lang === 'ARM') {
+    const dayName = armDayNames[date.getDay()];
+    const monthName = armMonthNames[month - 1];
+    return `${dayName}, ${monthName} ${day} ${timeStr}`;
+  }
+  
   // Russian formatting
-  return date.toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' });
+  const ruDayNames = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+  const ruMonthNames = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+  return `${ruDayNames[date.getDay()]}, ${day} ${ruMonthNames[month - 1]} ${timeStr}`;
 }
 
 // ============ BOOKING LIMIT CHECK ============
@@ -275,10 +313,8 @@ serve(async (req) => {
         if (apt?.patients?.telegram_user_id) {
           const patientLang = apt.patients.language || 'RU';
           const t = translations[patientLang as 'ARM' | 'RU'];
-          const startDT = new Date(apt.start_date_time);
-          const dateTimeStr = startDT.toLocaleString(patientLang === 'ARM' ? 'hy-AM' : 'ru-RU', {
-            weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
-          });
+          // Use our custom formatter to avoid timezone conversion issues
+          const dateTimeStr = formatDateTimeForTelegram(apt.start_date_time, patientLang as 'ARM' | 'RU');
           const doctorName = `${doctor.first_name} ${doctor.last_name}`;
           const msg = isConfirm
             ? t.appointmentConfirmed.replace('{doctorName}', doctorName).replace('{dateTime}', dateTimeStr)
