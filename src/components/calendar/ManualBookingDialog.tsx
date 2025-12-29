@@ -12,6 +12,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -47,6 +48,7 @@ type Doctor = {
 
 export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSuccess }: ManualBookingDialogProps) {
   const { t, language } = useLanguage();
+  const { user } = useAuth();
   const locale = language === 'ARM' ? hy : ru;
 
   const [patientTab, setPatientTab] = useState<'existing' | 'new'>('existing');
@@ -88,15 +90,35 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
   }, [selectedServiceId, services]);
 
   const fetchData = async () => {
-    const [patientsRes, servicesRes, doctorRes] = await Promise.all([
-      supabase.from('patients').select('*').order('first_name'),
-      supabase.from('services').select('*').eq('is_active', true).order('sort_order'),
-      supabase.from('doctor').select('*').limit(1).maybeSingle(),
-    ]);
-
-    if (patientsRes.data) setPatients(patientsRes.data);
-    if (servicesRes.data) setServices(servicesRes.data);
-    if (doctorRes.data) setDoctor(doctorRes.data);
+    if (!user?.id) return;
+    
+    // Fetch doctor first using user_id
+    const doctorRes = await supabase
+      .from('doctor')
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    
+    if (doctorRes.data) {
+      setDoctor(doctorRes.data);
+      
+      // Fetch services for this doctor
+      const servicesRes = await supabase
+        .from('services')
+        .select('*')
+        .eq('doctor_id', doctorRes.data.id)
+        .eq('is_active', true)
+        .order('sort_order');
+      
+      // Fetch patients (doctor can see their patients via RLS)
+      const patientsRes = await supabase
+        .from('patients')
+        .select('*')
+        .order('first_name');
+      
+      if (patientsRes.data) setPatients(patientsRes.data);
+      if (servicesRes.data) setServices(servicesRes.data);
+    }
   };
 
   const generateTimeSlots = () => {
