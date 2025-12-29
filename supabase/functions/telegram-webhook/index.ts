@@ -85,199 +85,51 @@ async function answerCallbackQuery(botToken: string, callbackQueryId: string, te
   });
 }
 
-// ============ DATE & TIME HELPERS ============
-
-// Yerevan timezone helper - get current date in Asia/Yerevan
-function getYerevanDate(): Date {
-  const now = new Date();
-  const yerevantTimeStr = now.toLocaleString('en-US', { timeZone: 'Asia/Yerevan' });
-  return new Date(yerevantTimeStr);
-}
-
-// Format date to YYYY-MM-DD
-function formatDateISO(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-// Armenian day names (Sun=0, Mon=1, Tue=2, Wed=3, Thu=4, Fri=5, Sat=6)
-const armDayNames = ['Կdelays', 'Եdelays', 'Եdelays', 'Չdelays', 'Հdelays', ' Delays', 'Շdelays'];
-// Armenian month names (0-based: Jan=0, Feb=1, ...)
-const armMonthNames = ['delays', 'փdelays', 'delays', ' delays', 'delays', 'delays', 'delays', 'Опdelays', 'սdelays', 'Пdelays', 'delays', 'delays'];
-
-// Russian day names (Sun=0, Mon=1, etc.)
-const ruDayNames = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
-// Russian month names (0-based)
-const ruMonthNames = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
-
-function formatDateForDisplay(dateStr: string, lang: 'ARM' | 'RU'): string {
-  const date = new Date(dateStr + 'T12:00:00'); // Use noon to avoid timezone issues
-  const dayOfWeek = date.getDay();
-  const dayOfMonth = date.getDate();
-  const month = date.getMonth();
-  
-  if (lang === 'ARM') {
-    return `${armDayNames[dayOfWeek]}, ${armMonthNames[month]} ${dayOfMonth}`;
-  }
-  
-  // Russian formatting
-  return `${ruDayNames[dayOfWeek]}, ${dayOfMonth} ${ruMonthNames[month]}`;
-}
-
-// Check if a specific date has at least one available time slot
-async function dateHasAvailableSlots(
-  supabase: any,
-  doctor: any,
-  dateStr: string,
-  durationMinutes: number
-): Promise<boolean> {
-  const startHour = parseInt(doctor.work_day_start_time?.split(':')[0] || '9');
-  const startMin = parseInt(doctor.work_day_start_time?.split(':')[1] || '0');
-  const endHour = parseInt(doctor.work_day_end_time?.split(':')[0] || '18');
-  const endMin = parseInt(doctor.work_day_end_time?.split(':')[1] || '0');
-  const slotStep = doctor.slot_step_minutes || 30;
-
-  // Get existing appointments for this date
-  const dateStart = `${dateStr}T00:00:00`;
-  const dateEnd = `${dateStr}T23:59:59`;
-  const { data: existingApts } = await supabase
-    .from('appointments')
-    .select('start_date_time, duration_minutes')
-    .eq('doctor_id', doctor.id)
-    .in('status', ['CONFIRMED', 'PENDING'])
-    .gte('start_date_time', dateStart)
-    .lte('start_date_time', dateEnd);
-
-  const bookedSlots = (existingApts || []).map((a: any) => {
-    const start = new Date(a.start_date_time);
-    const end = new Date(start.getTime() + a.duration_minutes * 60000);
-    return { start, end };
-  });
-
-  // Check each potential slot
-  let current = new Date(`${dateStr}T${String(startHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}:00`);
-  const endTime = new Date(`${dateStr}T${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}:00`);
-
-  // For today, skip past slots
-  const yerevantNow = getYerevanDate();
-  const todayStr = formatDateISO(yerevantNow);
-  if (dateStr === todayStr) {
-    const currentHour = yerevantNow.getHours();
-    const currentMin = yerevantNow.getMinutes();
-    const nowTime = new Date(`${dateStr}T${String(currentHour).padStart(2, '0')}:${String(currentMin).padStart(2, '0')}:00`);
-    if (current < nowTime) {
-      current = nowTime;
-      const mins = current.getMinutes();
-      const roundedMins = Math.ceil(mins / slotStep) * slotStep;
-      current.setMinutes(roundedMins, 0, 0);
-    }
-  }
-
-  while (current < endTime) {
-    const slotEnd = new Date(current.getTime() + durationMinutes * 60000);
-    if (slotEnd > endTime) break;
-
-    const isBooked = bookedSlots.some((b: any) => 
-      (current >= b.start && current < b.end) || (slotEnd > b.start && slotEnd <= b.end) ||
-      (current <= b.start && slotEnd >= b.end)
-    );
-
-    if (!isBooked) {
-      return true;
-    }
-
-    current = new Date(current.getTime() + slotStep * 60000);
-  }
-
-  return false;
-}
-
-// Get available dates for a specific page (7 days per page)
-async function getAvailableDatesForPage(
-  supabase: any,
-  doctor: any,
-  pageIndex: number,
-  durationMinutes: number,
-  blockedDatesSet: Set<string>
-): Promise<{ dates: string[]; hasMorePages: boolean; hasPrevPages: boolean }> {
+function getAvailableDates(workDays?: string[], blockedDates?: Set<string>): string[] {
+  const dates: string[] = [];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
   const dayNameToNumber: Record<string, number> = {
     SUNDAY: 0, MONDAY: 1, TUESDAY: 2, WEDNESDAY: 3, THURSDAY: 4, FRIDAY: 5, SATURDAY: 6,
   };
-  const validDays = new Set(doctor.work_days?.map((d: string) => dayNameToNumber[d]) || [1, 2, 3, 4, 5]);
-  
-  const yerevantToday = getYerevanDate();
-  yerevantToday.setHours(0, 0, 0, 0);
-  
-  // Calculate the date range for this page
-  const startOffset = pageIndex * 7;
-  const startDate = new Date(yerevantToday);
-  startDate.setDate(startDate.getDate() + startOffset);
-  
-  const dates: string[] = [];
-  const maxLookAhead = 60;
-  
-  console.log(`[Dates] Page ${pageIndex}: checking days from ${formatDateISO(startDate)}`);
-  
-  // Iterate through 7 calendar days for this page
-  for (let i = 0; i <= 6; i++) {
-    const checkDate = new Date(startDate);
-    checkDate.setDate(checkDate.getDate() + i);
-    
-    const dayOffset = Math.floor((checkDate.getTime() - yerevantToday.getTime()) / (1000 * 60 * 60 * 24));
-    if (dayOffset > maxLookAhead) break;
-    if (dayOffset < 0) continue;
-    
-    const dateStr = formatDateISO(checkDate);
-    
-    if (blockedDatesSet.has(dateStr)) {
-      console.log(`[Dates] ${dateStr} is blocked`);
+  const validDays = new Set(workDays?.map(d => dayNameToNumber[d]) || [1, 2, 3, 4, 5]);
+  for (let i = 1; i <= 21; i++) {
+    const date = new Date(today);
+    date.setDate(date.getDate() + i);
+    const dateStr = date.toISOString().split('T')[0];
+    // Skip blocked days
+    if (blockedDates?.has(dateStr)) {
       continue;
     }
-    if (!validDays.has(checkDate.getDay())) {
-      console.log(`[Dates] ${dateStr} is not a work day (day=${checkDate.getDay()})`);
-      continue;
-    }
-    
-    const hasSlots = await dateHasAvailableSlots(supabase, doctor, dateStr, durationMinutes);
-    if (hasSlots) {
+    if (validDays.has(date.getDay())) {
       dates.push(dateStr);
-      console.log(`[Dates] ${dateStr} has available slots`);
-    } else {
-      console.log(`[Dates] ${dateStr} has no available slots`);
+      if (dates.length >= 14) break;
     }
   }
+  return dates;
+}
+
+// Armenian translations for date formatting
+const armenianDays = ['Կdelays', 'Երdelays', 'Delays', 'Չdelays', 'Hdelays', 'Ուdelays', 'Շdelays'];
+const armenianMonths = ['delays', 'փdelays', 'delays', 'delays', 'delays', 'delays', 'delays', 'delays', 'delays', 'delays', 'delays', 'delays'];
+
+// Proper Armenian day names
+const armDayNames = ['\u053F\u056B\u0580', '\u0535\u0580\u056F', '\u0535\u0580\u0584', '\u0549\u0580\u0584', '\u0540\u0576\u0563', '\u0548\u0582\u0580', '\u0547\u0562\u0569'];
+// Proper Armenian month names  
+const armMonthNames = ['\u0570\u0578\u0582\u0576\u057E\u0561\u0580', '\u0583\u0565\u057F\u0580\u057E\u0561\u0580', '\u0574\u0561\u0580\u057F', '\u0561\u057A\u0580\u056B\u056C', '\u0574\u0561\u0575\u056B\u057D', '\u0570\u0578\u0582\u0576\u056B\u057D', '\u0570\u0578\u0582\u056C\u056B\u057D', '\u0585\u0563\u0578\u057D\u057F\u0578\u057D', '\u057D\u0565\u057A\u057F\u0565\u0574\u0562\u0565\u0580', '\u0570\u0578\u056F\u057F\u0565\u0574\u0562\u0565\u0580', '\u0576\u0578\u0575\u0565\u0574\u0562\u0565\u0580', '\u0564\u0565\u056F\u057F\u0565\u0574\u0562\u0565\u0580'];
+
+function formatDateForDisplay(dateStr: string, lang: 'ARM' | 'RU'): string {
+  const date = new Date(dateStr + 'T00:00:00');
   
-  // Check if there are more pages
-  let hasMorePages = false;
-  const nextPageStart = new Date(startDate);
-  nextPageStart.setDate(nextPageStart.getDate() + 7);
-  
-  for (let i = 0; i < 14; i++) {
-    const checkDate = new Date(nextPageStart);
-    checkDate.setDate(checkDate.getDate() + i);
-    
-    const dayOffset = Math.floor((checkDate.getTime() - yerevantToday.getTime()) / (1000 * 60 * 60 * 24));
-    if (dayOffset > maxLookAhead) break;
-    
-    const dateStr = formatDateISO(checkDate);
-    
-    if (blockedDatesSet.has(dateStr)) continue;
-    if (!validDays.has(checkDate.getDay())) continue;
-    
-    const hasSlots = await dateHasAvailableSlots(supabase, doctor, dateStr, durationMinutes);
-    if (hasSlots) {
-      hasMorePages = true;
-      break;
-    }
+  if (lang === 'ARM') {
+    const dayName = armDayNames[date.getDay()];
+    const monthName = armMonthNames[date.getMonth()];
+    const day = date.getDate();
+    return `${dayName}, ${monthName} ${day}`;
   }
   
-  const hasPrevPages = pageIndex > 0;
-  
-  console.log(`[Dates] Page ${pageIndex}: found ${dates.length} dates, hasMore=${hasMorePages}, hasPrev=${hasPrevPages}`);
-  
-  return { dates, hasMorePages, hasPrevPages };
+  // Russian formatting
+  return date.toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
 // ============ BOOKING LIMIT CHECK ============
@@ -285,7 +137,9 @@ const MAX_ACTIVE_BOOKINGS = 3;
 
 async function getActiveBookingsCount(supabase: any, patientId: string, doctorId: string): Promise<number> {
   // Get current time in Asia/Yerevan timezone
-  const yerevantNow = getYerevanDate();
+  const now = new Date();
+  const yerevantTimeStr = now.toLocaleString('en-US', { timeZone: 'Asia/Yerevan' });
+  const yerevantNow = new Date(yerevantTimeStr);
   
   const { count, error } = await supabase
     .from('appointments')
@@ -486,17 +340,9 @@ serve(async (req) => {
             session.step = 'awaiting_date';
             await updateSession(supabase, session);
             console.log(`[Flow] ${userId}: service=${svc.id} -> awaiting_date`);
-            await showDatesMenu(supabase, botToken, chatId, session, doctor, 0);
+            await showDatesMenu(supabase, botToken, chatId, session, doctor);
           }
         }
-        return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      }
-
-      // Date pagination (prev/next)
-      if (data.startsWith('page_')) {
-        const pageIndex = parseInt(data.replace('page_', ''), 10);
-        console.log(`[Flow] ${userId}: navigating to date page ${pageIndex}`);
-        await showDatesMenu(supabase, botToken, chatId, session, doctor, pageIndex);
         return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
@@ -558,7 +404,7 @@ serve(async (req) => {
         console.log(`[Flow] ${userId}: /start -> showing language selection`);
         const keyboard = {
           inline_keyboard: [
-            [{ text: "🇦🇲 Հdelays", callback_data: "lang_arm" }, { text: "🇷🇺 Русский", callback_data: "lang_ru" }]
+            [{ text: "\u{1F1E6}\u{1F1F2} \u0540\u0531\u0545\u0535\u0550\u0535\u0546", callback_data: "lang_arm" }, { text: "\u{1F1F7}\u{1F1FA} \u0420\u0443\u0441\u0441\u043A\u0438\u0439", callback_data: "lang_ru" }]
           ]
         };
         await sendTelegramMessage(botToken, chatId, `${translations.RU.welcome}\n${translations.ARM.welcome}`, keyboard);
@@ -577,38 +423,54 @@ serve(async (req) => {
         case 'awaiting_language':
           // User sent text instead of clicking button - prompt to use buttons
           console.log(`[Flow] ${userId}: awaiting_language, prompting to use buttons`);
+          // Show a generic "use buttons" prompt in both languages since we don't know their preference yet
           await sendTelegramMessage(botToken, chatId, `${translations.RU.useButtonsPrompt}\n${translations.ARM.useButtonsPrompt}`);
           const keyboard = {
             inline_keyboard: [
-              [{ text: "🇦🇲 ՀАЙDELAYSdelays", callback_data: "lang_arm" }, { text: "🇷🇺 Русский", callback_data: "lang_ru" }]
+              [{ text: "\u{1F1E6}\u{1F1F2} \u0540\u0531\u0545\u0535\u0550\u0535\u0546", callback_data: "lang_arm" }, { text: "\u{1F1F7}\u{1F1FA} \u0420\u0443\u0441\u0441\u043A\u0438\u0439", callback_data: "lang_ru" }]
             ]
           };
           await sendTelegramMessage(botToken, chatId, `${translations.RU.welcome}\n${translations.ARM.welcome}`, keyboard);
           break;
 
         case 'awaiting_name':
-          // Store name, create patient
-          const nameParts = text.split(' ');
+          // Parse name from text
+          const nameParts = text.split(/\s+/);
           const firstName = nameParts[0] || text;
           const lastName = nameParts.slice(1).join(' ') || null;
-          
-          const { data: patient, error: patientError } = await supabase.from('patients').insert({
-            telegram_user_id: userId,
-            first_name: firstName,
-            last_name: lastName,
-            language: session.language,
-          }).select('id').single();
 
-          if (patientError) {
-            console.error('[Flow] Failed to create patient:', patientError);
-            await sendTelegramMessage(botToken, chatId, 'Error creating patient. Please try /start again.');
-            break;
+          console.log(`[Flow] ${userId}: received name="${firstName} ${lastName}", creating/updating patient`);
+
+          // Upsert patient
+          const { data: existingPatient } = await supabase
+            .from('patients')
+            .select('id')
+            .eq('telegram_user_id', userId)
+            .maybeSingle();
+
+          let patientId: string;
+          if (existingPatient) {
+            await supabase.from('patients').update({
+              first_name: firstName,
+              last_name: lastName,
+              language: session.language,
+            }).eq('id', existingPatient.id);
+            patientId = existingPatient.id;
+          } else {
+            const { data: newPatient } = await supabase.from('patients').insert({
+              telegram_user_id: userId,
+              first_name: firstName,
+              last_name: lastName,
+              language: session.language,
+            }).select('id').single();
+            patientId = newPatient?.id;
           }
 
-          session.patient_id = patient.id;
+          session.patient_id = patientId;
           session.step = 'awaiting_phone';
           await updateSession(supabase, session);
-          console.log(`[Flow] ${userId}: created patient ${patient.id} -> awaiting_phone`);
+
+          console.log(`[Flow] ${userId}: patient saved, patientId=${patientId} -> awaiting_phone`);
 
           // Ask for phone with skip option
           const phoneKeyboard = {
@@ -616,51 +478,52 @@ serve(async (req) => {
             resize_keyboard: true,
             one_time_keyboard: true,
           };
-          const skipKeyboard = {
-            inline_keyboard: [[{ text: t.skipPhone, callback_data: 'skip_phone' }]]
-          };
+          const skipKeyboard = { inline_keyboard: [[{ text: t.skipPhone, callback_data: 'skip_phone' }]] };
           await sendTelegramMessage(botToken, chatId, t.sharePhone, phoneKeyboard);
-          await sendTelegramMessage(botToken, chatId, t.skipPhone, skipKeyboard);
+          await sendTelegramMessage(botToken, chatId, "👇", skipKeyboard);
           break;
 
         case 'awaiting_phone':
-          // Handle phone as text (they might type it instead of sharing)
-          if (msg.contact) {
+          // Handle contact share
+          if (msg.contact?.phone_number) {
             await supabase.from('patients').update({ phone_number: msg.contact.phone_number }).eq('id', session.patient_id);
-          } else if (text) {
-            await supabase.from('patients').update({ phone_number: text }).eq('id', session.patient_id);
+            console.log(`[Flow] ${userId}: phone saved -> awaiting_service`);
+          } else {
+            console.log(`[Flow] ${userId}: text instead of contact, treating as phone or skip -> awaiting_service`);
+            // Could be phone as text, save it
+            if (/^\+?\d{6,}$/.test(text.replace(/\s/g, ''))) {
+              await supabase.from('patients').update({ phone_number: text }).eq('id', session.patient_id);
+            }
           }
           session.step = 'awaiting_service';
           await updateSession(supabase, session);
-          console.log(`[Flow] ${userId}: phone saved -> awaiting_service`);
           await showServicesMenu(supabase, botToken, chatId, session, doctor);
           break;
 
         case 'awaiting_service':
-          // If we're here via text, it's a custom reason
-          if (text && !session.service_id) {
-            session.custom_reason = text;
-            session.duration_minutes = 30; // Default duration for custom services
-            session.step = 'awaiting_date';
-            await updateSession(supabase, session);
-            console.log(`[Flow] ${userId}: custom reason="${text}" -> awaiting_date`);
-            await showDatesMenu(supabase, botToken, chatId, session, doctor, 0);
-          } else {
-            // Prompt to use buttons
-            await sendTelegramMessage(botToken, chatId, t.useButtonsPrompt);
-            await showServicesMenu(supabase, botToken, chatId, session, doctor);
-          }
+          // If user types text here, treat it as custom reason
+          session.custom_reason = text;
+          session.duration_minutes = 30; // default for custom
+          session.step = 'awaiting_date';
+          await updateSession(supabase, session);
+        console.log(`[Flow] ${userId}: custom reason="${text}" -> awaiting_date`);
+          await showDatesMenu(supabase, botToken, chatId, session, doctor);
           break;
 
         case 'awaiting_date':
         case 'awaiting_time':
         case 'awaiting_confirmation':
-          // Prompt to use buttons
+          // User sent text when buttons expected - send "use buttons" prompt and resend appropriate menu
+          console.log(`[Flow] ${userId}: unexpected text at step=${session.step}, prompting to use buttons`);
           await sendTelegramMessage(botToken, chatId, t.useButtonsPrompt);
+          if (session.step === 'awaiting_date') await showDatesMenu(supabase, botToken, chatId, session, doctor);
+          else if (session.step === 'awaiting_time') await showTimeSlotsMenu(supabase, botToken, chatId, session, doctor);
+          else if (session.step === 'awaiting_confirmation') await showConfirmation(supabase, botToken, chatId, session, doctor);
           break;
 
         case 'idle':
-          // Patient already completed booking, show services menu for new booking
+          // After booking, show services again for new booking
+          session.step = 'awaiting_service';
           session.service_id = null;
           session.selected_date = null;
           session.selected_time = null;
@@ -720,10 +583,9 @@ async function showServicesMenu(supabase: any, botToken: string, chatId: number,
   await sendTelegramMessage(botToken, chatId, t.chooseService, { inline_keyboard: buttons });
 }
 
-async function showDatesMenu(supabase: any, botToken: string, chatId: number, session: TelegramSession, doctor: any, pageIndex: number = 0) {
+async function showDatesMenu(supabase: any, botToken: string, chatId: number, session: TelegramSession, doctor: any) {
   const lang = session.language || 'RU';
   const t = translations[lang];
-  const duration = session.duration_minutes || 30;
 
   // Fetch blocked days for this doctor
   const { data: blockedDays } = await supabase
@@ -737,46 +599,19 @@ async function showDatesMenu(supabase: any, botToken: string, chatId: number, se
   
   console.log(`[Dates] Blocked dates for doctor ${doctor.id}:`, Array.from(blockedDatesSet));
   
-  // Get paginated dates
-  const { dates, hasMorePages, hasPrevPages } = await getAvailableDatesForPage(
-    supabase,
-    doctor,
-    pageIndex,
-    duration,
-    blockedDatesSet
-  );
+  const dates = getAvailableDates(doctor.work_days as string[] | undefined, blockedDatesSet);
 
-  if (dates.length === 0 && pageIndex === 0) {
-    await sendTelegramMessage(botToken, chatId, t.noDatesAvailable);
+  if (dates.length === 0) {
+    await sendTelegramMessage(botToken, chatId, t.noDatesAvailable || (lang === 'ARM' ? 'Հասdelays չdelays' : 'Нет доступных дат'));
     return;
   }
 
-  // Build date buttons - 2 per row for better readability
   const rows: { text: string; callback_data: string }[][] = [];
-  for (let i = 0; i < dates.length; i += 2) {
-    const row = dates.slice(i, i + 2).map(d => ({
+  for (let i = 0; i < dates.length; i += 3) {
+    rows.push(dates.slice(i, i + 3).map(d => ({
       text: formatDateForDisplay(d, lang),
       callback_data: `date_${d}`,
-    }));
-    rows.push(row);
-  }
-
-  // Add navigation row
-  const navRow: { text: string; callback_data: string }[] = [];
-  if (hasPrevPages) {
-    navRow.push({
-      text: lang === 'ARM' ? '◀️ Нdelays 7 Пн' : '◀️ Пред. 7 дней',
-      callback_data: `page_${pageIndex - 1}`,
-    });
-  }
-  if (hasMorePages) {
-    navRow.push({
-      text: lang === 'ARM' ? 'Delays 7 Пн ▶️' : 'След. 7 дней ▶️',
-      callback_data: `page_${pageIndex + 1}`,
-    });
-  }
-  if (navRow.length > 0) {
-    rows.push(navRow);
+    })));
   }
 
   await sendTelegramMessage(botToken, chatId, t.chooseDate, { inline_keyboard: rows });
@@ -800,7 +635,7 @@ async function showTimeSlotsMenu(supabase: any, botToken: string, chatId: number
     .from('appointments')
     .select('start_date_time, duration_minutes')
     .eq('doctor_id', doctor.id)
-    .in('status', ['CONFIRMED', 'PENDING'])
+    .eq('status', 'CONFIRMED')
     .gte('start_date_time', dateStart)
     .lte('start_date_time', dateEnd);
 
@@ -814,28 +649,12 @@ async function showTimeSlotsMenu(supabase: any, botToken: string, chatId: number
   let current = new Date(`${session.selected_date}T${String(startHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}:00`);
   const endTime = new Date(`${session.selected_date}T${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}:00`);
 
-  // For today, skip past slots
-  const yerevantNow = getYerevanDate();
-  const todayStr = formatDateISO(yerevantNow);
-  if (session.selected_date === todayStr) {
-    const currentHour = yerevantNow.getHours();
-    const currentMin = yerevantNow.getMinutes();
-    const nowTime = new Date(`${session.selected_date}T${String(currentHour).padStart(2, '0')}:${String(currentMin).padStart(2, '0')}:00`);
-    if (current < nowTime) {
-      current = nowTime;
-      const mins = current.getMinutes();
-      const roundedMins = Math.ceil(mins / slotStep) * slotStep;
-      current.setMinutes(roundedMins, 0, 0);
-    }
-  }
-
   while (current < endTime) {
     const slotEnd = new Date(current.getTime() + duration * 60000);
     if (slotEnd > endTime) break;
 
     const isBooked = bookedSlots.some((b: any) => 
-      (current >= b.start && current < b.end) || (slotEnd > b.start && slotEnd <= b.end) ||
-      (current <= b.start && slotEnd >= b.end)
+      (current >= b.start && current < b.end) || (slotEnd > b.start && slotEnd <= b.end)
     );
 
     if (!isBooked) {
@@ -849,7 +668,7 @@ async function showTimeSlotsMenu(supabase: any, botToken: string, chatId: number
     await sendTelegramMessage(botToken, chatId, t.noSlots);
     session.step = 'awaiting_date';
     await supabase.from('telegram_sessions').upsert(session);
-    await showDatesMenu(supabase, botToken, chatId, session, doctor, 0);
+    await showDatesMenu(supabase, botToken, chatId, session, doctor);
     return;
   }
 
