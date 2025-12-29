@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { verifyAuth, verifyAppointmentOwnership } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -75,6 +76,21 @@ serve(async (req) => {
   }
 
   try {
+    // Verify authentication
+    const authResult = await verifyAuth(req);
+    if (authResult.error) {
+      return authResult.error;
+    }
+
+    const { appointmentId, action } = await req.json();
+    console.log("Sheets sync request:", { appointmentId, action });
+
+    // Verify the user owns the doctor associated with this appointment
+    const { isOwner, error: ownershipError } = await verifyAppointmentOwnership(authResult.userId, appointmentId);
+    if (!isOwner) {
+      return ownershipError!;
+    }
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const serviceAccountKeyJson = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_KEY");
@@ -89,9 +105,6 @@ serve(async (req) => {
 
     const serviceAccountKey: GoogleServiceAccountKey = JSON.parse(serviceAccountKeyJson);
     const supabase = createClient(supabaseUrl, supabaseKey);
-
-    const { appointmentId, action } = await req.json();
-    console.log("Sheets sync request:", { appointmentId, action });
 
     // Get appointment with related data
     const { data: appointment, error: aptError } = await supabase

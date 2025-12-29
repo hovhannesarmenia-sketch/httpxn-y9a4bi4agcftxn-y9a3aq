@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { botTranslations, type Language } from "../_shared/translations.ts";
+import { verifyAuth, verifyAppointmentOwnership } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -43,9 +44,11 @@ serve(async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // Verify authentication
+    const authResult = await verifyAuth(req);
+    if (authResult.error) {
+      return authResult.error;
+    }
 
     const { appointmentId, reason }: CancellationRequest = await req.json();
     console.log(`[Cancellation] Processing for appointment ${appointmentId}, reason: ${reason || 'none'}`);
@@ -56,6 +59,16 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // Verify the user owns the doctor associated with this appointment
+    const { isOwner, error: ownershipError } = await verifyAppointmentOwnership(authResult.userId, appointmentId);
+    if (!isOwner) {
+      return ownershipError!;
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Get appointment with patient info
     const { data: appointment, error: aptError } = await supabase
