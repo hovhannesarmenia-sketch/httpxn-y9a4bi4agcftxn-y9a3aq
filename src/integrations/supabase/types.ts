@@ -135,6 +135,7 @@ export type Database = {
           telegram_bot_token: string | null
           telegram_chat_id: string | null
           updated_at: string | null
+          user_id: string | null
           work_day_end_time: string | null
           work_day_start_time: string | null
           work_days: Database["public"]["Enums"]["day_of_week"][] | null
@@ -157,6 +158,7 @@ export type Database = {
           telegram_bot_token?: string | null
           telegram_chat_id?: string | null
           updated_at?: string | null
+          user_id?: string | null
           work_day_end_time?: string | null
           work_day_start_time?: string | null
           work_days?: Database["public"]["Enums"]["day_of_week"][] | null
@@ -179,6 +181,7 @@ export type Database = {
           telegram_bot_token?: string | null
           telegram_chat_id?: string | null
           updated_at?: string | null
+          user_id?: string | null
           work_day_end_time?: string | null
           work_day_start_time?: string | null
           work_days?: Database["public"]["Enums"]["day_of_week"][] | null
@@ -353,7 +356,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_doctor_id_for_user: { Args: { _user_id: string }; Returns: string }
+      is_doctor_owner: { Args: { _doctor_id: string }; Returns: boolean }
     }
     Enums: {
       appointment_status:

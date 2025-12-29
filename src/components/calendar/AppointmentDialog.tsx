@@ -8,6 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -48,6 +49,7 @@ interface AppointmentDialogProps {
 
 export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }: AppointmentDialogProps) {
   const { t, language } = useLanguage();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [duration, setDuration] = useState<string>('');
   const [rejectionReason, setRejectionReason] = useState('');
@@ -83,10 +85,11 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
   }, [open, appointment]);
 
   const fetchDoctor = async () => {
+    if (!user?.id) return;
     const { data } = await supabase
       .from('doctor')
       .select('id, work_day_start_time, work_day_end_time, slot_step_minutes')
-      .limit(1)
+      .eq('user_id', user.id)
       .maybeSingle();
     if (data) setDoctor(data);
   };

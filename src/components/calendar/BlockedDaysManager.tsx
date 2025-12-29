@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -41,6 +42,7 @@ export function BlockedDaysManager({
   onAppointmentsChange,
 }: BlockedDaysManagerProps) {
   const { language } = useLanguage();
+  const { user } = useAuth();
   const [isBlockDialogOpen, setIsBlockDialogOpen] = useState(false);
   const [isBlockWarningDialogOpen, setIsBlockWarningDialogOpen] = useState(false);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
@@ -57,10 +59,15 @@ export function BlockedDaysManager({
 
   useEffect(() => {
     fetchDoctor();
-  }, []);
+  }, [user?.id]);
 
   const fetchDoctor = async () => {
-    const { data } = await supabase.from('doctor').select('id').limit(1).maybeSingle();
+    if (!user?.id) return;
+    const { data } = await supabase
+      .from('doctor')
+      .select('id')
+      .eq('user_id', user.id)
+      .maybeSingle();
     if (data) setDoctorId(data.id);
   };
 

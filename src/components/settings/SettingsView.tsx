@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { User, Clock, Briefcase, Link2, Plus, Trash2, Save, Check, Bot, Eye, EyeOff } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 import type { Database } from '@/integrations/supabase/types';
 
 type Doctor = Database['public']['Tables']['doctor']['Row'];
@@ -24,6 +25,7 @@ export function SettingsView() {
   const { language, setLanguage } = useLanguage();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const [doctorForm, setDoctorForm] = useState<Partial<Doctor> & { ai_enabled?: boolean; llm_api_base_url?: string; llm_api_key?: string; llm_model_name?: string }>({});
   const [services, setServices] = useState<Partial<Service>[]>([]);
@@ -36,31 +38,39 @@ export function SettingsView() {
   const [showApiKey, setShowApiKey] = useState(false);
   const [apiKeyChanged, setApiKeyChanged] = useState(false);
 
+  // Fetch doctor profile linked to current authenticated user
   const { data: doctor, isLoading: doctorLoading } = useQuery({
-    queryKey: ['doctor'],
+    queryKey: ['doctor', user?.id],
     queryFn: async () => {
+      if (!user?.id) return null;
+      
       const { data, error } = await supabase
         .from('doctor')
         .select('*')
-        .limit(1)
+        .eq('user_id', user.id)
         .maybeSingle();
       
       if (error) throw error;
       return data;
     },
+    enabled: !!user?.id,
   });
 
   const { data: existingServices = [], isLoading: servicesLoading } = useQuery({
-    queryKey: ['services'],
+    queryKey: ['services', doctor?.id],
     queryFn: async () => {
+      if (!doctor?.id) return [];
+      
       const { data, error } = await supabase
         .from('services')
         .select('*')
+        .eq('doctor_id', doctor.id)
         .order('sort_order', { ascending: true });
       
       if (error) throw error;
       return data;
     },
+    enabled: !!doctor?.id,
   });
 
   useEffect(() => {
@@ -80,6 +90,8 @@ export function SettingsView() {
 
   const updateDoctor = useMutation({
     mutationFn: async (data: Partial<Doctor> & { ai_enabled?: boolean; llm_api_base_url?: string; llm_api_key?: string; llm_model_name?: string }) => {
+      if (!user?.id) throw new Error('User not authenticated');
+      
       const updateData: Record<string, unknown> = { ...data };
       
       // Only update API key if it was changed (not empty placeholder)
@@ -94,25 +106,28 @@ export function SettingsView() {
           .eq('id', doctor.id);
         if (error) throw error;
       } else {
+        // Create new doctor profile linked to the authenticated user
         const { error } = await supabase
           .from('doctor')
           .insert([{ 
             first_name: data.first_name || 'Doctor',
             last_name: data.last_name || '',
+            user_id: user.id,  // Link to authenticated user
             ...updateData 
           } as any]);
         if (error) throw error;
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['doctor'] });
+      queryClient.invalidateQueries({ queryKey: ['doctor', user?.id] });
       setApiKeyChanged(false);
       toast({
         title: t(language, 'settings.saved'),
         description: t(language, 'common.success'),
       });
     },
-    onError: () => {
+    onError: (error) => {
+      console.error('Error updating doctor:', error);
       toast({
         title: t(language, 'common.error'),
         variant: 'destructive',

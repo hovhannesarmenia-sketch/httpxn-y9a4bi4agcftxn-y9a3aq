@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, isToday } from 'date-fns';
 import { ru, hy } from 'date-fns/locale';
@@ -37,6 +38,7 @@ type BlockedDay = {
 
 export function CalendarView() {
   const { t, language } = useLanguage();
+  const { user } = useAuth();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -44,6 +46,7 @@ export function CalendarView() {
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [bookingDialogOpen, setBookingDialogOpen] = useState(false);
+  const [doctorId, setDoctorId] = useState<string | null>(null);
   
   // Multi-select for blocking days
   const [selectedDatesForBlocking, setSelectedDatesForBlocking] = useState<Date[]>([]);
@@ -53,6 +56,20 @@ export function CalendarView() {
 
   // Create a set of blocked date strings for quick lookup
   const blockedDatesSet = new Set(blockedDays.map(bd => bd.blocked_date));
+
+  // Fetch doctor linked to current user
+  const fetchDoctor = useCallback(async () => {
+    if (!user?.id) return null;
+    const { data } = await supabase
+      .from('doctor')
+      .select('id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if (data) {
+      setDoctorId(data.id);
+    }
+    return data;
+  }, [user?.id]);
 
   const fetchAppointments = useCallback(async () => {
     const start = startOfMonth(currentMonth);
@@ -86,22 +103,27 @@ export function CalendarView() {
   }, [currentMonth]);
 
   const fetchBlockedDays = useCallback(async () => {
-    const { data: doctor } = await supabase.from('doctor').select('id').limit(1).maybeSingle();
-    if (!doctor) return;
+    if (!doctorId) return;
 
     const { data, error } = await supabase
       .from('blocked_days')
       .select('id, blocked_date, reason')
-      .eq('doctor_id', doctor.id);
+      .eq('doctor_id', doctorId);
 
     if (!error && data) {
       setBlockedDays(data);
     }
-  }, []);
+  }, [doctorId]);
 
   useEffect(() => {
-    fetchAppointments();
-    fetchBlockedDays();
+    fetchDoctor();
+  }, [fetchDoctor]);
+
+  useEffect(() => {
+    if (doctorId) {
+      fetchAppointments();
+      fetchBlockedDays();
+    }
 
     const appointmentsChannel = supabase
       .channel('appointments-changes')
@@ -125,7 +147,7 @@ export function CalendarView() {
       supabase.removeChannel(appointmentsChannel);
       supabase.removeChannel(blockedDaysChannel);
     };
-  }, [currentMonth, fetchAppointments, fetchBlockedDays]);
+  }, [doctorId, currentMonth, fetchAppointments, fetchBlockedDays, fetchDoctor]);
 
   const getDaysInMonth = () => {
     const start = startOfMonth(currentMonth);

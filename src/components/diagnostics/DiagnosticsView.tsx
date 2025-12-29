@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAuth } from '@/hooks/useAuth';
 import { t } from '@/lib/i18n';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -31,6 +32,7 @@ interface ConnectionState {
 
 export function DiagnosticsView() {
   const { language } = useLanguage();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [connectionStatus, setConnectionStatus] = useState<ConnectionState>({
     telegram: 'not_configured',
@@ -41,17 +43,20 @@ export function DiagnosticsView() {
   const [isChecking, setIsChecking] = useState(false);
 
   const { data: doctor, isLoading: doctorLoading } = useQuery({
-    queryKey: ['doctor'],
+    queryKey: ['doctor', user?.id],
     queryFn: async () => {
+      if (!user?.id) return null;
+      
       const { data, error } = await supabase
         .from('doctor')
         .select('*')
-        .limit(1)
+        .eq('user_id', user.id)
         .maybeSingle();
       
       if (error) throw error;
       return data;
     },
+    enabled: !!user?.id,
   });
 
   // Derive initial status from doctor settings
