@@ -38,20 +38,45 @@ export function SettingsView() {
   const [showApiKey, setShowApiKey] = useState(false);
   const [apiKeyChanged, setApiKeyChanged] = useState(false);
 
-  // Fetch doctor profile linked to current authenticated user
+  // Safe view type that includes configuration status but excludes credentials
+  type DoctorSafeView = {
+    id: string;
+    first_name: string;
+    last_name: string;
+    interface_language: 'ARM' | 'RU' | null;
+    work_days: DayOfWeek[] | null;
+    work_day_start_time: string | null;
+    work_day_end_time: string | null;
+    slot_step_minutes: number | null;
+    google_calendar_id: string | null;
+    google_sheet_id: string | null;
+    telegram_chat_id: string | null;
+    created_at: string | null;
+    updated_at: string | null;
+    user_id: string | null;
+    ai_enabled: boolean | null;
+    llm_model_name: string | null;
+    has_telegram_token: boolean;
+    has_llm_key: boolean;
+    has_llm_base_url: boolean;
+  };
+
+  // Fetch doctor profile using safe view (excludes sensitive credentials)
   const { data: doctor, isLoading: doctorLoading } = useQuery({
     queryKey: ['doctor', user?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<DoctorSafeView | null> => {
       if (!user?.id) return null;
       
+      // Use doctor_safe view which excludes sensitive credentials
+      // Cast to unknown first to avoid type inference issues with dynamic view
       const { data, error } = await supabase
-        .from('doctor')
+        .from('doctor_safe' as any)
         .select('*')
         .eq('user_id', user.id)
         .maybeSingle();
       
       if (error) throw error;
-      return data;
+      return (data as unknown) as DoctorSafeView | null;
     },
     enabled: !!user?.id,
   });
@@ -75,10 +100,26 @@ export function SettingsView() {
 
   useEffect(() => {
     if (doctor) {
+      // Map safe view data to doctor form, excluding credential fields
       setDoctorForm({
-        ...doctor,
-        // Don't show existing API key, just indicate if set
-        llm_api_key: doctor.llm_api_key ? '' : '',
+        id: doctor.id,
+        first_name: doctor.first_name,
+        last_name: doctor.last_name,
+        interface_language: doctor.interface_language,
+        work_days: doctor.work_days,
+        work_day_start_time: doctor.work_day_start_time,
+        work_day_end_time: doctor.work_day_end_time,
+        slot_step_minutes: doctor.slot_step_minutes,
+        google_calendar_id: doctor.google_calendar_id,
+        google_sheet_id: doctor.google_sheet_id,
+        telegram_chat_id: doctor.telegram_chat_id,
+        ai_enabled: doctor.ai_enabled,
+        llm_model_name: doctor.llm_model_name,
+        // Don't populate credentials - they're not returned from safe view
+        // User must enter a new value to update them
+        llm_api_key: '',
+        telegram_bot_token: '',
+        llm_api_base_url: '',
       });
       setApiKeyChanged(false);
     }
@@ -88,18 +129,34 @@ export function SettingsView() {
     setServices(existingServices);
   }, [existingServices]);
 
+  // State to track which credential fields have been modified
+  const [tokenChanged, setTokenChanged] = useState(false);
+  const [baseUrlChanged, setBaseUrlChanged] = useState(false);
+
   const updateDoctor = useMutation({
     mutationFn: async (data: Partial<Doctor> & { ai_enabled?: boolean; llm_api_base_url?: string; llm_api_key?: string; llm_model_name?: string }) => {
       if (!user?.id) throw new Error('User not authenticated');
       
       const updateData: Record<string, unknown> = { ...data };
       
-      // Only update API key if it was changed (not empty placeholder)
-      if (!apiKeyChanged && data.llm_api_key === '') {
+      // Only update credentials if they were changed (not empty placeholder)
+      if (!apiKeyChanged || data.llm_api_key === '') {
         delete updateData.llm_api_key;
       }
+      if (!tokenChanged || data.telegram_bot_token === '') {
+        delete updateData.telegram_bot_token;
+      }
+      if (!baseUrlChanged || data.llm_api_base_url === '') {
+        delete updateData.llm_api_base_url;
+      }
+      
+      // Remove safe view computed fields that don't exist in actual table
+      delete updateData.has_telegram_token;
+      delete updateData.has_llm_key;
+      delete updateData.has_llm_base_url;
       
       if (doctor?.id) {
+        // Update existing doctor profile using the actual doctor table
         const { error } = await supabase
           .from('doctor')
           .update(updateData as any)
@@ -112,7 +169,7 @@ export function SettingsView() {
           .insert([{ 
             first_name: data.first_name || 'Doctor',
             last_name: data.last_name || '',
-            user_id: user.id,  // Link to authenticated user
+            user_id: user.id,
             ...updateData 
           } as any]);
         if (error) throw error;
@@ -121,6 +178,8 @@ export function SettingsView() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['doctor', user?.id] });
       setApiKeyChanged(false);
+      setTokenChanged(false);
+      setBaseUrlChanged(false);
       toast({
         title: t(language, 'settings.saved'),
         description: t(language, 'common.success'),
@@ -511,12 +570,19 @@ export function SettingsView() {
                 <Label>{t(language, 'settings.telegramToken')}</Label>
                 <Input
                   type="password"
-                  placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
+                  placeholder={doctor?.has_telegram_token ? '••••••••••••••••' : '123456789:ABCdefGHIjklMNOpqrsTUVwxyz'}
                   value={doctorForm.telegram_bot_token || ''}
-                  onChange={(e) => setDoctorForm({ ...doctorForm, telegram_bot_token: e.target.value })}
+                  onChange={(e) => {
+                    setDoctorForm({ ...doctorForm, telegram_bot_token: e.target.value });
+                    setTokenChanged(true);
+                  }}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Get your bot token from @BotFather on Telegram
+                  {doctor?.has_telegram_token ? (
+                    <span className="text-green-600">✓ Token configured - enter new value to update</span>
+                  ) : (
+                    'Get your bot token from @BotFather on Telegram'
+                  )}
                 </p>
               </div>
 
@@ -590,13 +656,20 @@ export function SettingsView() {
               <div className="space-y-2">
                 <Label>{t(language, 'settings.llmApiBaseUrl')}</Label>
                 <Input
-                  placeholder="https://api.deepseek.com/v1"
+                  placeholder={doctor?.has_llm_base_url ? '••••••••••••••••' : 'https://api.deepseek.com/v1'}
                   value={doctorForm.llm_api_base_url || ''}
-                  onChange={(e) => setDoctorForm({ ...doctorForm, llm_api_base_url: e.target.value })}
+                  onChange={(e) => {
+                    setDoctorForm({ ...doctorForm, llm_api_base_url: e.target.value });
+                    setBaseUrlChanged(true);
+                  }}
                   disabled={!doctorForm.ai_enabled}
                 />
                 <p className="text-xs text-muted-foreground">
-                  DeepSeek: https://api.deepseek.com/v1
+                  {doctor?.has_llm_base_url ? (
+                    <span className="text-green-600">✓ API URL configured - enter new value to update</span>
+                  ) : (
+                    'DeepSeek: https://api.deepseek.com/v1'
+                  )}
                 </p>
               </div>
 
@@ -605,7 +678,7 @@ export function SettingsView() {
                 <div className="relative">
                   <Input
                     type={showApiKey ? 'text' : 'password'}
-                    placeholder={doctor?.llm_api_key ? '••••••••••••••••' : 'sk-...'}
+                    placeholder={doctor?.has_llm_key ? '••••••••••••••••' : 'sk-...'}
                     value={doctorForm.llm_api_key || ''}
                     onChange={(e) => {
                       setDoctorForm({ ...doctorForm, llm_api_key: e.target.value });
@@ -625,8 +698,8 @@ export function SettingsView() {
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {doctor?.llm_api_key ? (
-                    <span className="text-green-600">{t(language, 'settings.aiKeyConfigured')}</span>
+                  {doctor?.has_llm_key ? (
+                    <span className="text-green-600">✓ {t(language, 'settings.aiKeyConfigured')} - enter new value to update</span>
                   ) : (
                     <span className="text-yellow-600">{t(language, 'settings.aiKeyNotConfigured')}</span>
                   )}
