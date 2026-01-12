@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { botTranslations, type Language } from "../_shared/translations.ts";
 import { verifyAuth, verifyAppointmentOwnership } from "../_shared/auth.ts";
+import { validateCancellationRequest } from "../_shared/validation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -9,11 +10,6 @@ const corsHeaders = {
 };
 
 const TELEGRAM_API = "https://api.telegram.org/bot";
-
-interface CancellationRequest {
-  appointmentId: string;
-  reason?: string;
-}
 
 // Use shared translations
 const translations = botTranslations;
@@ -50,15 +46,14 @@ serve(async (req) => {
       return authResult.error;
     }
 
-    const { appointmentId, reason }: CancellationRequest = await req.json();
-    console.log(`[Cancellation] Processing for appointment ${appointmentId}, reason: ${reason || 'none'}`);
-
-    if (!appointmentId) {
-      return new Response(
-        JSON.stringify({ success: false, error: "appointmentId is required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    // Parse and validate input
+    const body = await req.json();
+    const validation = validateCancellationRequest(body);
+    if (!validation.success) {
+      return validation.response!;
     }
+    const { appointmentId, reason } = validation.data!;
+    console.log(`[Cancellation] Processing for appointment ${appointmentId}, reason: ${reason || 'none'}`);
 
     // Verify the user owns the doctor associated with this appointment
     const { isOwner, error: ownershipError } = await verifyAppointmentOwnership(authResult.userId, appointmentId);
