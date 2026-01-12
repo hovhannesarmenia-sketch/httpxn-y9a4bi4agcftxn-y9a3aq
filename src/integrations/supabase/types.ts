@@ -69,6 +69,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "appointments_doctor_id_fkey"
+            columns: ["doctor_id"]
+            isOneToOne: false
+            referencedRelation: "doctor_safe"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "appointments_patient_id_fkey"
             columns: ["patient_id"]
             isOneToOne: false
@@ -112,6 +119,13 @@ export type Database = {
             columns: ["doctor_id"]
             isOneToOne: false
             referencedRelation: "doctor"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "blocked_days_doctor_id_fkey"
+            columns: ["doctor_id"]
+            isOneToOne: false
+            referencedRelation: "doctor_safe"
             referencedColumns: ["id"]
           },
         ]
@@ -292,6 +306,13 @@ export type Database = {
             referencedRelation: "doctor"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "services_doctor_id_fkey"
+            columns: ["doctor_id"]
+            isOneToOne: false
+            referencedRelation: "doctor_safe"
+            referencedColumns: ["id"]
+          },
         ]
       }
       telegram_sessions: {
@@ -353,7 +374,78 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      doctor_safe: {
+        Row: {
+          ai_enabled: boolean | null
+          created_at: string | null
+          first_name: string | null
+          google_calendar_id: string | null
+          google_sheet_id: string | null
+          has_llm_base_url: boolean | null
+          has_llm_key: boolean | null
+          has_telegram_token: boolean | null
+          id: string | null
+          interface_language:
+            | Database["public"]["Enums"]["interface_language"]
+            | null
+          last_name: string | null
+          llm_model_name: string | null
+          slot_step_minutes: number | null
+          telegram_chat_id: string | null
+          updated_at: string | null
+          user_id: string | null
+          work_day_end_time: string | null
+          work_day_start_time: string | null
+          work_days: Database["public"]["Enums"]["day_of_week"][] | null
+        }
+        Insert: {
+          ai_enabled?: boolean | null
+          created_at?: string | null
+          first_name?: string | null
+          google_calendar_id?: string | null
+          google_sheet_id?: string | null
+          has_llm_base_url?: never
+          has_llm_key?: never
+          has_telegram_token?: never
+          id?: string | null
+          interface_language?:
+            | Database["public"]["Enums"]["interface_language"]
+            | null
+          last_name?: string | null
+          llm_model_name?: string | null
+          slot_step_minutes?: number | null
+          telegram_chat_id?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+          work_day_end_time?: string | null
+          work_day_start_time?: string | null
+          work_days?: Database["public"]["Enums"]["day_of_week"][] | null
+        }
+        Update: {
+          ai_enabled?: boolean | null
+          created_at?: string | null
+          first_name?: string | null
+          google_calendar_id?: string | null
+          google_sheet_id?: string | null
+          has_llm_base_url?: never
+          has_llm_key?: never
+          has_telegram_token?: never
+          id?: string | null
+          interface_language?:
+            | Database["public"]["Enums"]["interface_language"]
+            | null
+          last_name?: string | null
+          llm_model_name?: string | null
+          slot_step_minutes?: number | null
+          telegram_chat_id?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+          work_day_end_time?: string | null
+          work_day_start_time?: string | null
+          work_days?: Database["public"]["Enums"]["day_of_week"][] | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       get_doctor_id_for_user: { Args: { _user_id: string }; Returns: string }
