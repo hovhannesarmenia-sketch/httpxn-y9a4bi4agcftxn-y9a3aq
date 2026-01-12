@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyAuth, verifyAppointmentOwnership } from "../_shared/auth.ts";
+import { validateAppointmentRequest } from "../_shared/validation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -82,7 +83,13 @@ serve(async (req) => {
       return authResult.error;
     }
 
-    const { appointmentId, action } = await req.json();
+    // Parse and validate input
+    const body = await req.json();
+    const validation = validateAppointmentRequest(body);
+    if (!validation.success) {
+      return validation.response!;
+    }
+    const { appointmentId, action } = validation.data!;
     console.log("Sheets sync request:", { appointmentId, action });
 
     // Verify the user owns the doctor associated with this appointment

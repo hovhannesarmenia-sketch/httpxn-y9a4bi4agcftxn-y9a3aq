@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyAuth, verifyDoctorOwnership } from "../_shared/auth.ts";
+import { validateDoctorRequest } from "../_shared/validation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,7 +20,13 @@ serve(async (req) => {
       return authResult.error;
     }
 
-    const { doctorId } = await req.json();
+    // Parse and validate input
+    const body = await req.json();
+    const validation = validateDoctorRequest(body);
+    if (!validation.success) {
+      return validation.response!;
+    }
+    const { doctorId } = validation.data!;
     console.log("Checking connections for doctor:", doctorId);
 
     // Verify the user owns this doctor profile
