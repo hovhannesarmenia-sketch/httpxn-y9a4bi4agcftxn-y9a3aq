@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { botTranslations, type Language } from "../_shared/translations.ts";
 import { verifyAuth, verifyAppointmentOwnership } from "../_shared/auth.ts";
 import { validateCancellationRequest } from "../_shared/validation.ts";
+import { createErrorResponse } from "../_shared/errors.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -151,11 +152,6 @@ serve(async (req) => {
       );
     }
   } catch (error) {
-    console.error("[Cancellation] Error:", error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(
-      JSON.stringify({ success: false, error: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return createErrorResponse(error, "Cancellation", corsHeaders);
   }
 });
