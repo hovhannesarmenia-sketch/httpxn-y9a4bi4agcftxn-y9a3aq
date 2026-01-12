@@ -52,6 +52,74 @@ interface TelegramUpdate {
 // Use shared translations
 const translations = botTranslations;
 
+// ============ INPUT VALIDATION ============
+
+const NAME_MAX_LENGTH = 100;
+const PHONE_MAX_LENGTH = 20;
+const CUSTOM_REASON_MAX_LENGTH = 500;
+const PHONE_REGEX = /^\+?[0-9\s\-()]{6,20}$/;
+
+/**
+ * Validates and sanitizes text input from Telegram users.
+ * Removes control characters and enforces length limits.
+ */
+function validateTextInput(text: string | undefined, maxLength: number): { valid: boolean; sanitized: string } {
+  if (!text || typeof text !== 'string') {
+    return { valid: false, sanitized: '' };
+  }
+  // Remove control characters and trim
+  const sanitized = text.replace(/[\x00-\x1F\x7F]/g, '').trim();
+  if (sanitized.length === 0 || sanitized.length > maxLength) {
+    return { valid: false, sanitized };
+  }
+  return { valid: true, sanitized };
+}
+
+/**
+ * Validates phone number format.
+ */
+function validatePhoneNumber(phone: string): { valid: boolean; sanitized: string } {
+  if (!phone || typeof phone !== 'string') {
+    return { valid: false, sanitized: '' };
+  }
+  const sanitized = phone.replace(/[\x00-\x1F\x7F]/g, '').trim();
+  if (!PHONE_REGEX.test(sanitized)) {
+    return { valid: false, sanitized };
+  }
+  return { valid: true, sanitized };
+}
+
+/**
+ * Validates name input - must be non-empty and within length limit.
+ */
+function validateName(name: string): { valid: boolean; firstName: string; lastName: string | null } {
+  const { valid, sanitized } = validateTextInput(name, NAME_MAX_LENGTH * 2); // Allow for first + last name
+  if (!valid) {
+    return { valid: false, firstName: '', lastName: null };
+  }
+  const nameParts = sanitized.split(/\s+/);
+  const firstName = nameParts[0] || '';
+  const lastName = nameParts.slice(1).join(' ') || null;
+  
+  if (firstName.length === 0 || firstName.length > NAME_MAX_LENGTH) {
+    return { valid: false, firstName, lastName };
+  }
+  if (lastName && lastName.length > NAME_MAX_LENGTH) {
+    return { valid: false, firstName, lastName };
+  }
+  return { valid: true, firstName, lastName };
+}
+
+/**
+ * Escapes HTML special characters for safe display in Telegram messages.
+ */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 // ============ HELPERS ============
 
 async function sendTelegramMessage(
@@ -470,12 +538,18 @@ serve(async (req) => {
           break;
 
         case 'awaiting_name':
-          // Parse name from text
-          const nameParts = text.split(/\s+/);
-          const firstName = nameParts[0] || text;
-          const lastName = nameParts.slice(1).join(' ') || null;
+          // Validate and parse name from text
+          const nameValidation = validateName(text);
+          if (!nameValidation.valid) {
+            console.log(`[Flow] ${userId}: invalid name input, prompting again`);
+            await sendTelegramMessage(botToken, chatId, t.invalidName);
+            break;
+          }
+          
+          const firstName = nameValidation.firstName;
+          const lastName = nameValidation.lastName;
 
-          console.log(`[Flow] ${userId}: received name="${firstName} ${lastName}", creating/updating patient`);
+          console.log(`[Flow] ${userId}: received name="${escapeHtml(firstName)} ${escapeHtml(lastName || '')}", creating/updating patient`);
 
           // Upsert patient
           const { data: existingPatient } = await supabase
@@ -522,13 +596,18 @@ serve(async (req) => {
         case 'awaiting_phone':
           // Handle contact share
           if (msg.contact?.phone_number) {
-            await supabase.from('patients').update({ phone_number: msg.contact.phone_number }).eq('id', session.patient_id);
-            console.log(`[Flow] ${userId}: phone saved -> awaiting_service`);
+            // Validate phone from contact
+            const phoneVal = validatePhoneNumber(msg.contact.phone_number);
+            if (phoneVal.valid) {
+              await supabase.from('patients').update({ phone_number: phoneVal.sanitized }).eq('id', session.patient_id);
+              console.log(`[Flow] ${userId}: phone saved -> awaiting_service`);
+            }
           } else {
             console.log(`[Flow] ${userId}: text instead of contact, treating as phone or skip -> awaiting_service`);
-            // Could be phone as text, save it
-            if (/^\+?\d{6,}$/.test(text.replace(/\s/g, ''))) {
-              await supabase.from('patients').update({ phone_number: text }).eq('id', session.patient_id);
+            // Validate phone as text
+            const phoneTextVal = validatePhoneNumber(text);
+            if (phoneTextVal.valid) {
+              await supabase.from('patients').update({ phone_number: phoneTextVal.sanitized }).eq('id', session.patient_id);
             }
           }
           session.step = 'awaiting_service';
@@ -537,12 +616,19 @@ serve(async (req) => {
           break;
 
         case 'awaiting_service':
+          // Validate custom reason length
+          const reasonValidation = validateTextInput(text, CUSTOM_REASON_MAX_LENGTH);
+          if (!reasonValidation.valid && text.length > 0) {
+            console.log(`[Flow] ${userId}: custom reason too long, prompting again`);
+            await sendTelegramMessage(botToken, chatId, t.textTooLong);
+            break;
+          }
           // If user types text here, treat it as custom reason
-          session.custom_reason = text;
+          session.custom_reason = reasonValidation.sanitized || text;
           session.duration_minutes = 30; // default for custom
           session.step = 'awaiting_date';
           await updateSession(supabase, session);
-        console.log(`[Flow] ${userId}: custom reason="${text}" -> awaiting_date`);
+          console.log(`[Flow] ${userId}: custom reason="${escapeHtml(session.custom_reason || '')}" -> awaiting_date`);
           await showDatesMenu(supabase, botToken, chatId, session, doctor);
           break;
 

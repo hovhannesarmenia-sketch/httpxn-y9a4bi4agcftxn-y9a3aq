@@ -5,34 +5,39 @@ import { useAuth } from '@/hooks/useAuth';
 import type { Database } from '@/integrations/supabase/types';
 
 type Doctor = Database['public']['Tables']['doctor']['Row'];
+// Type for the doctor_safe view that excludes sensitive credentials
+type DoctorSafe = Database['public']['Views']['doctor_safe']['Row'];
 
 /**
  * Hook to manage the doctor profile linked to the authenticated user.
  * Handles fetching, creating, and linking doctor profiles to auth users.
+ * Uses doctor_safe view for reading to avoid exposing sensitive credentials.
  */
 export function useDoctorProfile() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
   // Fetch the doctor profile for the current authenticated user
+  // Uses doctor_safe view to avoid exposing sensitive credentials to browser
   const { 
     data: doctor, 
     isLoading, 
     error,
     refetch 
-  } = useQuery({
-    queryKey: ['doctor', user?.id],
+  } = useQuery<DoctorSafe | null>({
+    queryKey: ['doctor_safe', user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
 
+      // Use doctor_safe view - excludes sensitive columns like llm_api_key, telegram_bot_token
       const { data, error } = await supabase
-        .from('doctor')
+        .from('doctor_safe')
         .select('*')
         .eq('user_id', user.id)
         .maybeSingle();
 
       if (error) throw error;
-      return data;
+      return data as DoctorSafe | null;
     },
     enabled: !!user?.id,
   });

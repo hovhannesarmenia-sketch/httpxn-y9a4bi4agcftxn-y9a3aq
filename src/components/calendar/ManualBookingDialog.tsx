@@ -92,21 +92,23 @@ export function ManualBookingDialog({ open, onOpenChange, selectedDate, onSucces
   const fetchData = async () => {
     if (!user?.id) return;
     
-    // Fetch doctor first using user_id
+    // Fetch doctor using doctor_safe view to avoid exposing credentials
     const doctorRes = await supabase
-      .from('doctor')
+      .from('doctor_safe')
       .select('*')
       .eq('user_id', user.id)
       .maybeSingle();
     
     if (doctorRes.data) {
-      setDoctor(doctorRes.data);
+      // Cast to our local Doctor type (doctor_safe has the same fields we need)
+      const doctorData = doctorRes.data as unknown as Doctor;
+      setDoctor(doctorData);
       
       // Fetch services for this doctor
       const servicesRes = await supabase
         .from('services')
         .select('*')
-        .eq('doctor_id', doctorRes.data.id)
+        .eq('doctor_id', doctorData.id)
         .eq('is_active', true)
         .order('sort_order');
       
