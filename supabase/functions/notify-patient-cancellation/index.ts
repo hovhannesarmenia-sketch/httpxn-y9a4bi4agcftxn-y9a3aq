@@ -81,14 +81,21 @@ serve(async (req) => {
       );
     }
 
-    // Get doctor for bot token
+    // Get doctor info (non-sensitive data)
     const { data: doctor } = await supabase
       .from("doctor")
-      .select("telegram_bot_token, first_name, last_name")
+      .select("first_name, last_name")
       .eq("id", appointment.doctor_id)
       .single();
 
-    if (!doctor?.telegram_bot_token) {
+    // Get credentials from secure credentials table
+    const { data: credentials } = await supabase
+      .from("doctor_credentials")
+      .select("telegram_bot_token")
+      .eq("doctor_id", appointment.doctor_id)
+      .maybeSingle();
+
+    if (!credentials?.telegram_bot_token) {
       console.log("[Cancellation] No bot token configured");
       return new Response(
         JSON.stringify({ success: true, message: "No bot token, skipped notification" }),
@@ -133,7 +140,7 @@ serve(async (req) => {
 
     // Send notification
     const result = await sendTelegramMessage(
-      doctor.telegram_bot_token,
+      credentials.telegram_bot_token,
       patient.telegram_user_id,
       message
     );

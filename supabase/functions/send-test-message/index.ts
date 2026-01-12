@@ -40,14 +40,21 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get doctor info
+    // Get doctor info (non-sensitive data)
     const { data: doctor } = await supabase
       .from("doctor")
-      .select("*")
+      .select("interface_language, telegram_chat_id")
       .eq("id", doctorId)
       .maybeSingle();
 
-    if (!doctor?.telegram_bot_token || !doctor?.telegram_chat_id) {
+    // Get credentials from secure credentials table
+    const { data: credentials } = await supabase
+      .from("doctor_credentials")
+      .select("telegram_bot_token")
+      .eq("doctor_id", doctorId)
+      .maybeSingle();
+
+    if (!credentials?.telegram_bot_token || !doctor?.telegram_chat_id) {
       return new Response(
         JSON.stringify({ error: "Telegram not configured" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -60,7 +67,7 @@ serve(async (req) => {
       : "✅ MedBook: Тестовое сообщение успешно отправлено!";
 
     // Remove "bot" prefix if user accidentally included it
-    const botToken = doctor.telegram_bot_token.replace(/^bot/i, '');
+    const botToken = credentials.telegram_bot_token.replace(/^bot/i, '');
 
     let response: Response;
 
