@@ -57,21 +57,35 @@ serve(async (req) => {
     const in24Hours = new Date(yerevanNow.getTime() + 24 * 60 * 60 * 1000);
     const in2Hours = new Date(yerevanNow.getTime() + 2 * 60 * 60 * 1000);
 
-    // Get doctor
+    // Get doctor (non-sensitive data)
     const { data: doctor } = await supabase
       .from("doctor")
-      .select("*")
+      .select("id, first_name, last_name")
       .limit(1)
       .maybeSingle();
 
-    if (!doctor?.telegram_bot_token) {
-      console.log("No doctor or bot token configured");
+    if (!doctor) {
+      console.log("No doctor configured");
+      return new Response(JSON.stringify({ message: "No doctor configured" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Get credentials from secure credentials table
+    const { data: credentials } = await supabase
+      .from("doctor_credentials")
+      .select("telegram_bot_token")
+      .eq("doctor_id", doctor.id)
+      .maybeSingle();
+
+    if (!credentials?.telegram_bot_token) {
+      console.log("No bot token configured");
       return new Response(JSON.stringify({ message: "No bot configured" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const botToken = doctor.telegram_bot_token;
+    const botToken = credentials.telegram_bot_token;
     const doctorName = `${doctor.first_name} ${doctor.last_name}`;
 
     // Get confirmed appointments that need reminders

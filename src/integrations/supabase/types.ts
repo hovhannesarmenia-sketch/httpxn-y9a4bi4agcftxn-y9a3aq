@@ -202,6 +202,51 @@ export type Database = {
         }
         Relationships: []
       }
+      doctor_credentials: {
+        Row: {
+          created_at: string | null
+          doctor_id: string
+          id: string
+          llm_api_base_url: string | null
+          llm_api_key: string | null
+          telegram_bot_token: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          doctor_id: string
+          id?: string
+          llm_api_base_url?: string | null
+          llm_api_key?: string | null
+          telegram_bot_token?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          doctor_id?: string
+          id?: string
+          llm_api_base_url?: string | null
+          llm_api_key?: string | null
+          telegram_bot_token?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "doctor_credentials_doctor_id_fkey"
+            columns: ["doctor_id"]
+            isOneToOne: true
+            referencedRelation: "doctor"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "doctor_credentials_doctor_id_fkey"
+            columns: ["doctor_id"]
+            isOneToOne: true
+            referencedRelation: "doctor_safe"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       patients: {
         Row: {
           created_at: string | null
@@ -398,58 +443,29 @@ export type Database = {
           work_day_start_time: string | null
           work_days: Database["public"]["Enums"]["day_of_week"][] | null
         }
-        Insert: {
-          ai_enabled?: boolean | null
-          created_at?: string | null
-          first_name?: string | null
-          google_calendar_id?: string | null
-          google_sheet_id?: string | null
-          has_llm_base_url?: never
-          has_llm_key?: never
-          has_telegram_token?: never
-          id?: string | null
-          interface_language?:
-            | Database["public"]["Enums"]["interface_language"]
-            | null
-          last_name?: string | null
-          llm_model_name?: string | null
-          slot_step_minutes?: number | null
-          telegram_chat_id?: string | null
-          updated_at?: string | null
-          user_id?: string | null
-          work_day_end_time?: string | null
-          work_day_start_time?: string | null
-          work_days?: Database["public"]["Enums"]["day_of_week"][] | null
-        }
-        Update: {
-          ai_enabled?: boolean | null
-          created_at?: string | null
-          first_name?: string | null
-          google_calendar_id?: string | null
-          google_sheet_id?: string | null
-          has_llm_base_url?: never
-          has_llm_key?: never
-          has_telegram_token?: never
-          id?: string | null
-          interface_language?:
-            | Database["public"]["Enums"]["interface_language"]
-            | null
-          last_name?: string | null
-          llm_model_name?: string | null
-          slot_step_minutes?: number | null
-          telegram_chat_id?: string | null
-          updated_at?: string | null
-          user_id?: string | null
-          work_day_end_time?: string | null
-          work_day_start_time?: string | null
-          work_days?: Database["public"]["Enums"]["day_of_week"][] | null
-        }
         Relationships: []
       }
     }
     Functions: {
+      get_doctor_credentials: {
+        Args: { _doctor_id: string }
+        Returns: {
+          llm_api_base_url: string
+          llm_api_key: string
+          telegram_bot_token: string
+        }[]
+      }
       get_doctor_id_for_user: { Args: { _user_id: string }; Returns: string }
       is_doctor_owner: { Args: { _doctor_id: string }; Returns: boolean }
+      update_doctor_credentials: {
+        Args: {
+          _doctor_id: string
+          _llm_api_base_url?: string
+          _llm_api_key?: string
+          _telegram_bot_token?: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       appointment_status:

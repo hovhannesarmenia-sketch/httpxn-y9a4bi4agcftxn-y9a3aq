@@ -344,14 +344,26 @@ serve(async (req) => {
     const update: TelegramUpdate = await req.json();
     console.log("[Webhook] Received update:", JSON.stringify(update));
 
-    // Get doctor info
+    // Get doctor info (non-sensitive data from doctor table)
     const { data: doctor } = await supabase.from("doctor").select("*").limit(1).maybeSingle();
-    if (!doctor?.telegram_bot_token) {
-      console.log("[Webhook] No doctor or bot token configured");
+    if (!doctor) {
+      console.log("[Webhook] No doctor configured");
       return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const botToken = doctor.telegram_bot_token;
+    // Get credentials from secure credentials table
+    const { data: credentials } = await supabase
+      .from("doctor_credentials")
+      .select("telegram_bot_token")
+      .eq("doctor_id", doctor.id)
+      .maybeSingle();
+    
+    if (!credentials?.telegram_bot_token) {
+      console.log("[Webhook] No bot token configured");
+      return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    const botToken = credentials.telegram_bot_token;
 
     // ============ CALLBACK QUERY (button clicks) ============
     if (update.callback_query) {

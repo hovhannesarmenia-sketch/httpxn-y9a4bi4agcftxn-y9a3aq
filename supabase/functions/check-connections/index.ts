@@ -40,10 +40,10 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get doctor info
+    // Get doctor info (non-sensitive data)
     const { data: doctor } = await supabase
       .from("doctor")
-      .select("*")
+      .select("google_calendar_id, google_sheet_id")
       .eq("id", doctorId)
       .maybeSingle();
 
@@ -57,15 +57,22 @@ serve(async (req) => {
       });
     }
 
+    // Get credentials from secure credentials table
+    const { data: credentials } = await supabase
+      .from("doctor_credentials")
+      .select("telegram_bot_token")
+      .eq("doctor_id", doctorId)
+      .maybeSingle();
+
     let telegramConnected = false;
     let googleCalendarConnected = false;
     let googleSheetsConnected = false;
 
     // Check Telegram
-    if (doctor.telegram_bot_token) {
+    if (credentials?.telegram_bot_token) {
       try {
         // Remove "bot" prefix if it was accidentally included
-        const cleanToken = doctor.telegram_bot_token.replace(/^bot/i, "");
+        const cleanToken = credentials.telegram_bot_token.replace(/^bot/i, "");
 
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 8000);

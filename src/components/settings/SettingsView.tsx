@@ -137,18 +137,20 @@ export function SettingsView() {
     mutationFn: async (data: Partial<Doctor> & { ai_enabled?: boolean; llm_api_base_url?: string; llm_api_key?: string; llm_model_name?: string }) => {
       if (!user?.id) throw new Error('User not authenticated');
       
+      // Separate credentials from profile data
+      const credentialsToUpdate = {
+        llm_api_key: apiKeyChanged && data.llm_api_key ? data.llm_api_key : null,
+        llm_api_base_url: baseUrlChanged && data.llm_api_base_url ? data.llm_api_base_url : null,
+        telegram_bot_token: tokenChanged && data.telegram_bot_token ? data.telegram_bot_token : null,
+      };
+      
+      // Profile data (non-sensitive)
       const updateData: Record<string, unknown> = { ...data };
       
-      // Only update credentials if they were changed (not empty placeholder)
-      if (!apiKeyChanged || data.llm_api_key === '') {
-        delete updateData.llm_api_key;
-      }
-      if (!tokenChanged || data.telegram_bot_token === '') {
-        delete updateData.telegram_bot_token;
-      }
-      if (!baseUrlChanged || data.llm_api_base_url === '') {
-        delete updateData.llm_api_base_url;
-      }
+      // Remove credentials from profile update - they go to secure RPC
+      delete updateData.llm_api_key;
+      delete updateData.telegram_bot_token;
+      delete updateData.llm_api_base_url;
       
       // Remove safe view computed fields that don't exist in actual table
       delete updateData.has_telegram_token;
@@ -162,17 +164,49 @@ export function SettingsView() {
           .update(updateData as any)
           .eq('id', doctor.id);
         if (error) throw error;
+        
+        // Update credentials via secure RPC if any were changed
+        const hasCredentialChanges = credentialsToUpdate.llm_api_key || 
+                                     credentialsToUpdate.llm_api_base_url || 
+                                     credentialsToUpdate.telegram_bot_token;
+        
+        if (hasCredentialChanges) {
+          const { error: credError } = await supabase.rpc('update_doctor_credentials', {
+            _doctor_id: doctor.id,
+            _llm_api_key: credentialsToUpdate.llm_api_key,
+            _llm_api_base_url: credentialsToUpdate.llm_api_base_url,
+            _telegram_bot_token: credentialsToUpdate.telegram_bot_token,
+          });
+          if (credError) throw credError;
+        }
       } else {
         // Create new doctor profile linked to the authenticated user
-        const { error } = await supabase
+        const { data: newDoctor, error } = await supabase
           .from('doctor')
           .insert([{ 
             first_name: data.first_name || 'Doctor',
             last_name: data.last_name || '',
             user_id: user.id,
             ...updateData 
-          } as any]);
+          } as any])
+          .select('id')
+          .single();
         if (error) throw error;
+        
+        // Update credentials via secure RPC for new doctor
+        const hasCredentialChanges = credentialsToUpdate.llm_api_key || 
+                                     credentialsToUpdate.llm_api_base_url || 
+                                     credentialsToUpdate.telegram_bot_token;
+        
+        if (hasCredentialChanges && newDoctor?.id) {
+          const { error: credError } = await supabase.rpc('update_doctor_credentials', {
+            _doctor_id: newDoctor.id,
+            _llm_api_key: credentialsToUpdate.llm_api_key,
+            _llm_api_base_url: credentialsToUpdate.llm_api_base_url,
+            _telegram_bot_token: credentialsToUpdate.telegram_bot_token,
+          });
+          if (credError) throw credError;
+        }
       }
     },
     onSuccess: () => {
