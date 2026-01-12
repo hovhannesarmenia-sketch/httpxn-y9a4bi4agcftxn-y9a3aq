@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import type { Database } from '@/integrations/supabase/types';
 import { 
   CheckCircle2, 
   XCircle, 
@@ -22,6 +23,9 @@ import {
 } from 'lucide-react';
 
 type ConnectionStatus = 'connected' | 'disconnected' | 'checking' | 'not_configured';
+
+// Type for the doctor_safe view that excludes sensitive credentials
+type DoctorSafe = Database['public']['Views']['doctor_safe']['Row'];
 
 interface ConnectionState {
   telegram: ConnectionStatus;
@@ -42,29 +46,31 @@ export function DiagnosticsView() {
   });
   const [isChecking, setIsChecking] = useState(false);
 
-  const { data: doctor, isLoading: doctorLoading } = useQuery({
-    queryKey: ['doctor', user?.id],
+  const { data: doctor, isLoading: doctorLoading } = useQuery<DoctorSafe | null>({
+    queryKey: ['doctor_safe', user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
       
+      // Use doctor_safe view to avoid exposing sensitive credentials to browser
+      // Cast to avoid Supabase client type issues with views
       const { data, error } = await supabase
-        .from('doctor')
+        .from('doctor_safe')
         .select('*')
         .eq('user_id', user.id)
         .maybeSingle();
       
       if (error) throw error;
-      return data;
+      return data as DoctorSafe | null;
     },
     enabled: !!user?.id,
   });
 
-  // Derive initial status from doctor settings
+  // Derive initial status from doctor settings (using safe boolean flags)
   useEffect(() => {
     if (doctor) {
       setConnectionStatus(prev => ({
         ...prev,
-        telegram: doctor.telegram_bot_token && doctor.telegram_chat_id 
+        telegram: doctor.has_telegram_token && doctor.telegram_chat_id 
           ? (prev.lastChecked ? prev.telegram : 'not_configured')
           : 'not_configured',
         googleCalendar: doctor.google_calendar_id 
@@ -80,7 +86,7 @@ export function DiagnosticsView() {
   // Auto-check connections on mount if settings are configured
   useEffect(() => {
     if (doctor && !connectionStatus.lastChecked) {
-      const hasAnyConfig = doctor.telegram_bot_token || doctor.google_calendar_id || doctor.google_sheet_id;
+      const hasAnyConfig = doctor.has_telegram_token || doctor.google_calendar_id || doctor.google_sheet_id;
       if (hasAnyConfig) {
         checkConnections();
       }
@@ -93,7 +99,7 @@ export function DiagnosticsView() {
     setIsChecking(true);
     setConnectionStatus(prev => ({
       ...prev,
-      telegram: doctor.telegram_bot_token ? 'checking' : 'not_configured',
+      telegram: doctor.has_telegram_token ? 'checking' : 'not_configured',
       googleCalendar: doctor.google_calendar_id ? 'checking' : 'not_configured',
       googleSheets: doctor.google_sheet_id ? 'checking' : 'not_configured',
     }));
@@ -106,7 +112,7 @@ export function DiagnosticsView() {
       if (error) throw error;
 
       setConnectionStatus({
-        telegram: !doctor.telegram_bot_token ? 'not_configured' 
+        telegram: !doctor.has_telegram_token ? 'not_configured' 
           : data?.telegram ? 'connected' : 'disconnected',
         googleCalendar: !doctor.google_calendar_id ? 'not_configured'
           : data?.googleCalendar ? 'connected' : 'disconnected',
@@ -124,7 +130,7 @@ export function DiagnosticsView() {
     } catch (error) {
       console.error('Connection check failed:', error);
       setConnectionStatus(prev => ({
-        telegram: doctor.telegram_bot_token ? 'disconnected' : 'not_configured',
+        telegram: doctor.has_telegram_token ? 'disconnected' : 'not_configured',
         googleCalendar: doctor.google_calendar_id ? 'disconnected' : 'not_configured',
         googleSheets: doctor.google_sheet_id ? 'disconnected' : 'not_configured',
         lastChecked: new Date(),
@@ -273,8 +279,8 @@ export function DiagnosticsView() {
                 <div>
                   <h3 className="font-semibold">{t(language, 'diagnostics.telegram')}</h3>
                   <p className="text-sm text-muted-foreground">
-                    {doctor?.telegram_bot_token 
-                      ? `Token: ****${doctor.telegram_bot_token.slice(-6)}`
+                    {doctor?.has_telegram_token 
+                      ? `Token: ••••••`
                       : language === 'ARM' ? 'Token chkarxavorvats' : 'Token не настроен'
                     }
                     {doctor?.telegram_chat_id 
@@ -363,7 +369,7 @@ export function DiagnosticsView() {
         <CardContent>
           <Button
             onClick={() => sendTestMessage.mutate()}
-            disabled={sendTestMessage.isPending || !doctor?.telegram_bot_token || !doctor?.telegram_chat_id}
+            disabled={sendTestMessage.isPending || !doctor?.has_telegram_token || !doctor?.telegram_chat_id}
           >
             {sendTestMessage.isPending ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -372,7 +378,7 @@ export function DiagnosticsView() {
             )}
             {t(language, 'diagnostics.sendTest')}
           </Button>
-          {(!doctor?.telegram_bot_token || !doctor?.telegram_chat_id) && (
+          {(!doctor?.has_telegram_token || !doctor?.telegram_chat_id) && (
             <p className="text-sm text-muted-foreground mt-2">
               {language === 'ARM' 
                 ? 'Nakh karxavoriq Telegram Token-y ev Chat ID-n Settings → Integrations baxnum'
