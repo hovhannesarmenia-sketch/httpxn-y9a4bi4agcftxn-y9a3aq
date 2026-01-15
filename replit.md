@@ -72,10 +72,13 @@ npm run build        # Build for production
 - [x] Express server with authentication
 - [x] Core API routes
 - [x] Frontend auth hooks migrated
-- [ ] Calendar components fully migrated
-- [ ] Settings/Patients views migrated
-- [ ] Telegram webhook ported
-- [ ] Google Calendar sync ported
+- [x] Calendar components fully migrated
+- [x] SettingsView migrated with integration settings (Telegram, Google Calendar, Google Sheets)
+- [x] Google Calendar sync endpoint ported with Zod validation
+- [x] Google Sheets sync endpoint ported with Zod validation
+- [x] Telegram webhook ported with callback query support
+- [ ] PatientsView migrated
+- [ ] Full Telegram booking flow (from Supabase functions)
 
 ## User Preferences
 - Interface languages: Armenian (ARM), Russian (RU)
