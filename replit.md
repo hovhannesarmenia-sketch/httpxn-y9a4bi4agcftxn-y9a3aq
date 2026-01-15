@@ -77,6 +77,7 @@ npm run build        # Build for production
 - [x] Google Calendar sync endpoint ported with Zod validation
 - [x] Google Sheets sync endpoint ported with Zod validation
 - [x] Telegram webhook ported with callback query support
+- [x] DiagnosticsView migrated to use backend API
 - [ ] PatientsView migrated
 - [ ] Full Telegram booking flow (from Supabase functions)
 
