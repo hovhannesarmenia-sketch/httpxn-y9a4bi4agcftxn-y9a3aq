@@ -30,6 +30,7 @@ export interface IStorage {
   
   getDoctorByUserId(userId: string): Promise<Doctor | undefined>;
   getDoctor(id: string): Promise<Doctor | undefined>;
+  getAllDoctors(): Promise<Doctor[]>;
   createDoctor(data: InsertDoctor): Promise<Doctor>;
   updateDoctor(id: string, data: Partial<InsertDoctor>): Promise<Doctor | undefined>;
   
@@ -80,6 +81,10 @@ export class DatabaseStorage implements IStorage {
   async getDoctor(id: string): Promise<Doctor | undefined> {
     const [doc] = await db.select().from(doctor).where(eq(doctor.id, id));
     return doc;
+  }
+
+  async getAllDoctors(): Promise<Doctor[]> {
+    return db.select().from(doctor);
   }
 
   async createDoctor(data: InsertDoctor): Promise<Doctor> {

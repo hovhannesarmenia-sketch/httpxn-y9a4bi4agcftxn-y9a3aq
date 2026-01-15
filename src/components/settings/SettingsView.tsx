@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { t } from '@/lib/i18n';
 import { Input } from '@/components/ui/input';
@@ -11,13 +10,43 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { User, Clock, Briefcase, Link2, Plus, Trash2, Save, Check, Bot, Eye, EyeOff } from 'lucide-react';
+import { User, Clock, Briefcase, Link2, Plus, Trash2, Save, Check, Bot, Eye, EyeOff, TestTube } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import type { Database } from '@/integrations/supabase/types';
+import { apiRequest } from '@/lib/queryClient';
 
-type Doctor = Database['public']['Tables']['doctor']['Row'];
-type Service = Database['public']['Tables']['services']['Row'];
-type DayOfWeek = Database['public']['Enums']['day_of_week'];
+type DayOfWeek = 'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY' | 'SUNDAY';
+
+interface Doctor {
+  id: string;
+  userId: string | null;
+  firstName: string;
+  lastName: string;
+  interfaceLanguage: 'ARM' | 'RU' | null;
+  workDays: string[] | null;
+  workDayStartTime: string | null;
+  workDayEndTime: string | null;
+  slotStepMinutes: number | null;
+  telegramBotToken: string | null;
+  telegramChatId: string | null;
+  googleCalendarId: string | null;
+  googleSheetId: string | null;
+  aiEnabled: boolean | null;
+  llmApiBaseUrl: string | null;
+  llmApiKey: string | null;
+  llmModelName: string | null;
+  hasTelegramToken?: boolean;
+  hasLlmKey?: boolean;
+}
+
+interface Service {
+  id: string;
+  doctorId: string;
+  nameArm: string;
+  nameRu: string;
+  defaultDurationMinutes: number;
+  isActive: boolean | null;
+  sortOrder: number | null;
+}
 
 const DAYS_OF_WEEK: DayOfWeek[] = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'];
 
@@ -27,101 +56,61 @@ export function SettingsView() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
-  const [doctorForm, setDoctorForm] = useState<Partial<Doctor> & { ai_enabled?: boolean; llm_api_base_url?: string; llm_api_key?: string; llm_model_name?: string }>({});
+  const [doctorForm, setDoctorForm] = useState<Partial<Doctor>>({});
   const [services, setServices] = useState<Partial<Service>[]>([]);
   const [newService, setNewService] = useState<Partial<Service>>({
-    name_arm: '',
-    name_ru: '',
-    default_duration_minutes: 30,
-    is_active: true,
+    nameArm: '',
+    nameRu: '',
+    defaultDurationMinutes: 30,
+    isActive: true,
   });
   const [showApiKey, setShowApiKey] = useState(false);
   const [apiKeyChanged, setApiKeyChanged] = useState(false);
+  const [tokenChanged, setTokenChanged] = useState(false);
+  const [baseUrlChanged, setBaseUrlChanged] = useState(false);
 
-  // Safe view type that includes configuration status but excludes credentials
-  type DoctorSafeView = {
-    id: string;
-    first_name: string;
-    last_name: string;
-    interface_language: 'ARM' | 'RU' | null;
-    work_days: DayOfWeek[] | null;
-    work_day_start_time: string | null;
-    work_day_end_time: string | null;
-    slot_step_minutes: number | null;
-    google_calendar_id: string | null;
-    google_sheet_id: string | null;
-    telegram_chat_id: string | null;
-    created_at: string | null;
-    updated_at: string | null;
-    user_id: string | null;
-    ai_enabled: boolean | null;
-    llm_model_name: string | null;
-    has_telegram_token: boolean;
-    has_llm_key: boolean;
-    has_llm_base_url: boolean;
-  };
-
-  // Fetch doctor profile using safe view (excludes sensitive credentials)
-  const { data: doctor, isLoading: doctorLoading } = useQuery({
-    queryKey: ['doctor', user?.id],
-    queryFn: async (): Promise<DoctorSafeView | null> => {
-      if (!user?.id) return null;
-      
-      // Use doctor_safe view which excludes sensitive credentials
-      // Cast to unknown first to avoid type inference issues with dynamic view
-      const { data, error } = await supabase
-        .from('doctor_safe' as any)
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      
-      if (error) throw error;
-      return (data as unknown) as DoctorSafeView | null;
-    },
+  const { data: doctor, isLoading: doctorLoading } = useQuery<Doctor | null>({
+    queryKey: ['/api/doctor'],
     enabled: !!user?.id,
   });
 
-  const { data: existingServices = [], isLoading: servicesLoading } = useQuery({
-    queryKey: ['services', doctor?.id],
-    queryFn: async () => {
-      if (!doctor?.id) return [];
-      
-      const { data, error } = await supabase
-        .from('services')
-        .select('*')
-        .eq('doctor_id', doctor.id)
-        .order('sort_order', { ascending: true });
-      
-      if (error) throw error;
-      return data;
-    },
+  const { data: existingServices = [], isLoading: servicesLoading } = useQuery<Service[]>({
+    queryKey: ['/api/services'],
+    enabled: !!doctor?.id,
+  });
+
+  const { data: integrationStatus } = useQuery<{
+    telegram: { configured: boolean; hasBotToken: boolean; hasChatId: boolean };
+    googleCalendar: { configured: boolean; hasCalendarId: boolean; hasServiceAccount: boolean };
+    googleSheets: { configured: boolean; hasSheetId: boolean; hasServiceAccount: boolean };
+  }>({
+    queryKey: ['/api/integrations/status'],
     enabled: !!doctor?.id,
   });
 
   useEffect(() => {
     if (doctor) {
-      // Map safe view data to doctor form, excluding credential fields
       setDoctorForm({
         id: doctor.id,
-        first_name: doctor.first_name,
-        last_name: doctor.last_name,
-        interface_language: doctor.interface_language,
-        work_days: doctor.work_days,
-        work_day_start_time: doctor.work_day_start_time,
-        work_day_end_time: doctor.work_day_end_time,
-        slot_step_minutes: doctor.slot_step_minutes,
-        google_calendar_id: doctor.google_calendar_id,
-        google_sheet_id: doctor.google_sheet_id,
-        telegram_chat_id: doctor.telegram_chat_id,
-        ai_enabled: doctor.ai_enabled,
-        llm_model_name: doctor.llm_model_name,
-        // Don't populate credentials - they're not returned from safe view
-        // User must enter a new value to update them
-        llm_api_key: '',
-        telegram_bot_token: '',
-        llm_api_base_url: '',
+        firstName: doctor.firstName,
+        lastName: doctor.lastName,
+        interfaceLanguage: doctor.interfaceLanguage,
+        workDays: doctor.workDays,
+        workDayStartTime: doctor.workDayStartTime,
+        workDayEndTime: doctor.workDayEndTime,
+        slotStepMinutes: doctor.slotStepMinutes,
+        googleCalendarId: doctor.googleCalendarId,
+        googleSheetId: doctor.googleSheetId,
+        telegramChatId: doctor.telegramChatId,
+        aiEnabled: doctor.aiEnabled,
+        llmModelName: doctor.llmModelName,
+        telegramBotToken: '',
+        llmApiKey: '',
+        llmApiBaseUrl: '',
       });
       setApiKeyChanged(false);
+      setTokenChanged(false);
+      setBaseUrlChanged(false);
     }
   }, [doctor]);
 
@@ -129,88 +118,24 @@ export function SettingsView() {
     setServices(existingServices);
   }, [existingServices]);
 
-  // State to track which credential fields have been modified
-  const [tokenChanged, setTokenChanged] = useState(false);
-  const [baseUrlChanged, setBaseUrlChanged] = useState(false);
-
   const updateDoctor = useMutation({
-    mutationFn: async (data: Partial<Doctor> & { ai_enabled?: boolean; llm_api_base_url?: string; llm_api_key?: string; llm_model_name?: string }) => {
-      if (!user?.id) throw new Error('User not authenticated');
+    mutationFn: async (data: Partial<Doctor>) => {
+      if (!doctor?.id) throw new Error('Doctor not found');
       
-      // Separate credentials from profile data
-      const credentialsToUpdate = {
-        llm_api_key: apiKeyChanged && data.llm_api_key ? data.llm_api_key : null,
-        llm_api_base_url: baseUrlChanged && data.llm_api_base_url ? data.llm_api_base_url : null,
-        telegram_bot_token: tokenChanged && data.telegram_bot_token ? data.telegram_bot_token : null,
-      };
-      
-      // Profile data (non-sensitive)
       const updateData: Record<string, unknown> = { ...data };
       
-      // Remove credentials from profile update - they go to secure RPC
-      delete updateData.llm_api_key;
-      delete updateData.telegram_bot_token;
-      delete updateData.llm_api_base_url;
+      if (!tokenChanged) delete updateData.telegramBotToken;
+      if (!apiKeyChanged) delete updateData.llmApiKey;
+      if (!baseUrlChanged) delete updateData.llmApiBaseUrl;
       
-      // Remove safe view computed fields that don't exist in actual table
-      delete updateData.has_telegram_token;
-      delete updateData.has_llm_key;
-      delete updateData.has_llm_base_url;
-      
-      if (doctor?.id) {
-        // Update existing doctor profile using the actual doctor table
-        const { error } = await supabase
-          .from('doctor')
-          .update(updateData as any)
-          .eq('id', doctor.id);
-        if (error) throw error;
-        
-        // Update credentials via secure RPC if any were changed
-        const hasCredentialChanges = credentialsToUpdate.llm_api_key || 
-                                     credentialsToUpdate.llm_api_base_url || 
-                                     credentialsToUpdate.telegram_bot_token;
-        
-        if (hasCredentialChanges) {
-          const { error: credError } = await supabase.rpc('update_doctor_credentials', {
-            _doctor_id: doctor.id,
-            _llm_api_key: credentialsToUpdate.llm_api_key,
-            _llm_api_base_url: credentialsToUpdate.llm_api_base_url,
-            _telegram_bot_token: credentialsToUpdate.telegram_bot_token,
-          });
-          if (credError) throw credError;
-        }
-      } else {
-        // Create new doctor profile linked to the authenticated user
-        const { data: newDoctor, error } = await supabase
-          .from('doctor')
-          .insert([{ 
-            first_name: data.first_name || 'Doctor',
-            last_name: data.last_name || '',
-            user_id: user.id,
-            ...updateData 
-          } as any])
-          .select('id')
-          .single();
-        if (error) throw error;
-        
-        // Update credentials via secure RPC for new doctor
-        const hasCredentialChanges = credentialsToUpdate.llm_api_key || 
-                                     credentialsToUpdate.llm_api_base_url || 
-                                     credentialsToUpdate.telegram_bot_token;
-        
-        if (hasCredentialChanges && newDoctor?.id) {
-          const { error: credError } = await supabase.rpc('update_doctor_credentials', {
-            _doctor_id: newDoctor.id,
-            _llm_api_key: credentialsToUpdate.llm_api_key,
-            _llm_api_base_url: credentialsToUpdate.llm_api_base_url,
-            _telegram_bot_token: credentialsToUpdate.telegram_bot_token,
-          });
-          if (credError) throw credError;
-        }
-      }
+      delete updateData.hasTelegramToken;
+      delete updateData.hasLlmKey;
+
+      return apiRequest('PATCH', `/api/doctor/${doctor.id}`, updateData);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['doctor', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['/api/doctor'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/integrations/status'] });
       setApiKeyChanged(false);
       setTokenChanged(false);
       setBaseUrlChanged(false);
@@ -230,85 +155,89 @@ export function SettingsView() {
 
   const updateService = useMutation({
     mutationFn: async (service: Partial<Service>) => {
-      if (service.id) {
-        const { error } = await supabase
-          .from('services')
-          .update({
-            name_arm: service.name_arm,
-            name_ru: service.name_ru,
-            default_duration_minutes: service.default_duration_minutes,
-            is_active: service.is_active,
-          })
-          .eq('id', service.id);
-        if (error) throw error;
-      }
+      if (!service.id) throw new Error('Service ID required');
+      return apiRequest('PATCH', `/api/services/${service.id}`, {
+        nameArm: service.nameArm,
+        nameRu: service.nameRu,
+        defaultDurationMinutes: service.defaultDurationMinutes,
+        isActive: service.isActive,
+      });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['services'] });
-      toast({
-        title: t(language, 'settings.saved'),
-      });
+      queryClient.invalidateQueries({ queryKey: ['/api/services'] });
+      toast({ title: t(language, 'settings.saved') });
     },
   });
 
   const addService = useMutation({
     mutationFn: async (service: Partial<Service>) => {
-      if (!doctor?.id) {
-        throw new Error('Doctor not found');
-      }
-      const { error } = await supabase
-        .from('services')
-        .insert([{
-          doctor_id: doctor.id,
-          name_arm: service.name_arm || '',
-          name_ru: service.name_ru || '',
-          default_duration_minutes: service.default_duration_minutes || 30,
-          is_active: service.is_active ?? true,
-          sort_order: services.length,
-        }]);
-      if (error) throw error;
+      return apiRequest('POST', '/api/services', {
+        nameArm: service.nameArm || '',
+        nameRu: service.nameRu || '',
+        defaultDurationMinutes: service.defaultDurationMinutes || 30,
+        isActive: service.isActive ?? true,
+        sortOrder: services.length,
+      });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['services'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/services'] });
       setNewService({
-        name_arm: '',
-        name_ru: '',
-        default_duration_minutes: 30,
-        is_active: true,
+        nameArm: '',
+        nameRu: '',
+        defaultDurationMinutes: 30,
+        isActive: true,
       });
-      toast({
-        title: t(language, 'common.success'),
-      });
+      toast({ title: t(language, 'common.success') });
     },
   });
 
   const deleteService = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('services')
-        .delete()
-        .eq('id', id);
-      if (error) throw error;
+      return apiRequest('DELETE', `/api/services/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['services'] });
-      toast({
-        title: t(language, 'common.success'),
-      });
+      queryClient.invalidateQueries({ queryKey: ['/api/services'] });
+      toast({ title: t(language, 'common.success') });
+    },
+  });
+
+  const testTelegram = useMutation({
+    mutationFn: async () => {
+      return apiRequest('POST', '/api/integrations/test-telegram');
+    },
+    onSuccess: () => {
+      toast({ title: 'Telegram test successful!', description: 'Check your Telegram chat for a test message.' });
+    },
+    onError: (error) => {
+      console.error('Telegram test failed:', error);
+      toast({ title: 'Telegram test failed', variant: 'destructive' });
+    },
+  });
+
+  const setupWebhook = useMutation({
+    mutationFn: async () => {
+      return apiRequest('POST', '/api/integrations/setup-telegram-webhook');
+    },
+    onSuccess: () => {
+      toast({ title: 'Webhook configured!', description: 'Telegram bot is now active.' });
+    },
+    onError: (error) => {
+      console.error('Webhook setup failed:', error);
+      toast({ title: 'Webhook setup failed', variant: 'destructive' });
     },
   });
 
   const toggleDay = (day: DayOfWeek) => {
-    const currentDays = doctorForm.work_days || [];
+    const currentDays = (doctorForm.workDays || []) as string[];
     const newDays = currentDays.includes(day)
       ? currentDays.filter(d => d !== day)
       : [...currentDays, day];
-    setDoctorForm({ ...doctorForm, work_days: newDays });
+    setDoctorForm({ ...doctorForm, workDays: newDays });
   };
 
   if (doctorLoading || servicesLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex items-center justify-center h-64" data-testid="loading-spinner">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
@@ -320,29 +249,28 @@ export function SettingsView() {
 
       <Tabs defaultValue="profile" className="space-y-6">
         <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="profile" className="flex items-center gap-2">
+          <TabsTrigger value="profile" className="flex items-center gap-2" data-testid="tab-profile">
             <User className="h-4 w-4" />
             <span className="hidden sm:inline">{t(language, 'settings.profile')}</span>
           </TabsTrigger>
-          <TabsTrigger value="schedule" className="flex items-center gap-2">
+          <TabsTrigger value="schedule" className="flex items-center gap-2" data-testid="tab-schedule">
             <Clock className="h-4 w-4" />
             <span className="hidden sm:inline">{t(language, 'settings.workSchedule')}</span>
           </TabsTrigger>
-          <TabsTrigger value="services" className="flex items-center gap-2">
+          <TabsTrigger value="services" className="flex items-center gap-2" data-testid="tab-services">
             <Briefcase className="h-4 w-4" />
             <span className="hidden sm:inline">{t(language, 'settings.services')}</span>
           </TabsTrigger>
-          <TabsTrigger value="integrations" className="flex items-center gap-2">
+          <TabsTrigger value="integrations" className="flex items-center gap-2" data-testid="tab-integrations">
             <Link2 className="h-4 w-4" />
             <span className="hidden sm:inline">{t(language, 'settings.integrations')}</span>
           </TabsTrigger>
-          <TabsTrigger value="ai" className="flex items-center gap-2">
+          <TabsTrigger value="ai" className="flex items-center gap-2" data-testid="tab-ai">
             <Bot className="h-4 w-4" />
             <span className="hidden sm:inline">{t(language, 'settings.aiAssistant')}</span>
           </TabsTrigger>
         </TabsList>
 
-        {/* Profile Tab */}
         <TabsContent value="profile">
           <Card className="medical-card">
             <CardHeader>
@@ -353,15 +281,17 @@ export function SettingsView() {
                 <div className="space-y-2">
                   <Label>{t(language, 'settings.firstName')}</Label>
                   <Input
-                    value={doctorForm.first_name || ''}
-                    onChange={(e) => setDoctorForm({ ...doctorForm, first_name: e.target.value })}
+                    data-testid="input-first-name"
+                    value={doctorForm.firstName || ''}
+                    onChange={(e) => setDoctorForm({ ...doctorForm, firstName: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label>{t(language, 'settings.lastName')}</Label>
                   <Input
-                    value={doctorForm.last_name || ''}
-                    onChange={(e) => setDoctorForm({ ...doctorForm, last_name: e.target.value })}
+                    data-testid="input-last-name"
+                    value={doctorForm.lastName || ''}
+                    onChange={(e) => setDoctorForm({ ...doctorForm, lastName: e.target.value })}
                   />
                 </div>
               </div>
@@ -369,13 +299,13 @@ export function SettingsView() {
               <div className="space-y-2">
                 <Label>{t(language, 'patients.language')}</Label>
                 <Select
-                  value={doctorForm.interface_language || 'RU'}
+                  value={doctorForm.interfaceLanguage || 'RU'}
                   onValueChange={(value) => {
-                    setDoctorForm({ ...doctorForm, interface_language: value as 'ARM' | 'RU' });
+                    setDoctorForm({ ...doctorForm, interfaceLanguage: value as 'ARM' | 'RU' });
                     setLanguage(value as 'ARM' | 'RU');
                   }}
                 >
-                  <SelectTrigger className="w-full md:w-[200px]">
+                  <SelectTrigger className="w-full md:w-[200px]" data-testid="select-language">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -389,6 +319,7 @@ export function SettingsView() {
                 onClick={() => updateDoctor.mutate(doctorForm)}
                 disabled={updateDoctor.isPending}
                 className="w-full md:w-auto"
+                data-testid="button-save-profile"
               >
                 {updateDoctor.isPending ? (
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
@@ -401,7 +332,6 @@ export function SettingsView() {
           </Card>
         </TabsContent>
 
-        {/* Schedule Tab */}
         <TabsContent value="schedule">
           <Card className="medical-card">
             <CardHeader>
@@ -415,12 +345,13 @@ export function SettingsView() {
                     <Button
                       key={day}
                       type="button"
-                      variant={doctorForm.work_days?.includes(day) ? 'default' : 'outline'}
+                      variant={(doctorForm.workDays as string[] || []).includes(day) ? 'default' : 'outline'}
                       size="sm"
                       onClick={() => toggleDay(day)}
                       className="min-w-[100px]"
+                      data-testid={`button-day-${day.toLowerCase()}`}
                     >
-                      {doctorForm.work_days?.includes(day) && (
+                      {(doctorForm.workDays as string[] || []).includes(day) && (
                         <Check className="h-3 w-3 mr-1" />
                       )}
                       {t(language, `days.${day}`)}
@@ -434,16 +365,18 @@ export function SettingsView() {
                   <Label>{t(language, 'settings.from')}</Label>
                   <Input
                     type="time"
-                    value={doctorForm.work_day_start_time || '09:00'}
-                    onChange={(e) => setDoctorForm({ ...doctorForm, work_day_start_time: e.target.value })}
+                    data-testid="input-work-start"
+                    value={doctorForm.workDayStartTime || '09:00'}
+                    onChange={(e) => setDoctorForm({ ...doctorForm, workDayStartTime: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label>{t(language, 'settings.to')}</Label>
                   <Input
                     type="time"
-                    value={doctorForm.work_day_end_time || '18:00'}
-                    onChange={(e) => setDoctorForm({ ...doctorForm, work_day_end_time: e.target.value })}
+                    data-testid="input-work-end"
+                    value={doctorForm.workDayEndTime || '18:00'}
+                    onChange={(e) => setDoctorForm({ ...doctorForm, workDayEndTime: e.target.value })}
                   />
                 </div>
               </div>
@@ -451,10 +384,10 @@ export function SettingsView() {
               <div className="space-y-2">
                 <Label>Slot Step (minutes)</Label>
                 <Select
-                  value={String(doctorForm.slot_step_minutes || 15)}
-                  onValueChange={(value) => setDoctorForm({ ...doctorForm, slot_step_minutes: parseInt(value) })}
+                  value={String(doctorForm.slotStepMinutes || 15)}
+                  onValueChange={(value) => setDoctorForm({ ...doctorForm, slotStepMinutes: parseInt(value) })}
                 >
-                  <SelectTrigger className="w-full md:w-[200px]">
+                  <SelectTrigger className="w-full md:w-[200px]" data-testid="select-slot-step">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -468,6 +401,7 @@ export function SettingsView() {
               <Button 
                 onClick={() => updateDoctor.mutate(doctorForm)}
                 disabled={updateDoctor.isPending}
+                data-testid="button-save-schedule"
               >
                 <Save className="h-4 w-4 mr-2" />
                 {t(language, 'settings.save')}
@@ -476,7 +410,6 @@ export function SettingsView() {
           </Card>
         </TabsContent>
 
-        {/* Services Tab */}
         <TabsContent value="services">
           <Card className="medical-card">
             <CardHeader>
@@ -484,34 +417,33 @@ export function SettingsView() {
               <CardDescription>{t(language, 'settings.addService')}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Existing Services */}
               <div className="space-y-4">
                 {services.map((service, index) => (
-                  <div key={service.id || index} className="flex flex-col md:flex-row gap-3 p-4 rounded-lg border bg-muted/20">
+                  <div key={service.id || index} className="flex flex-col md:flex-row gap-3 p-4 rounded-lg border bg-muted/20" data-testid={`service-row-${index}`}>
                     <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3">
                       <Input
                         placeholder={t(language, 'settings.serviceNameArm')}
-                        value={service.name_arm || ''}
+                        value={service.nameArm || ''}
                         onChange={(e) => {
                           const updated = [...services];
-                          updated[index] = { ...updated[index], name_arm: e.target.value };
+                          updated[index] = { ...updated[index], nameArm: e.target.value };
                           setServices(updated);
                         }}
                       />
                       <Input
                         placeholder={t(language, 'settings.serviceNameRu')}
-                        value={service.name_ru || ''}
+                        value={service.nameRu || ''}
                         onChange={(e) => {
                           const updated = [...services];
-                          updated[index] = { ...updated[index], name_ru: e.target.value };
+                          updated[index] = { ...updated[index], nameRu: e.target.value };
                           setServices(updated);
                         }}
                       />
                       <Select
-                        value={String(service.default_duration_minutes || 30)}
+                        value={String(service.defaultDurationMinutes || 30)}
                         onValueChange={(value) => {
                           const updated = [...services];
-                          updated[index] = { ...updated[index], default_duration_minutes: parseInt(value) };
+                          updated[index] = { ...updated[index], defaultDurationMinutes: parseInt(value) };
                           setServices(updated);
                         }}
                       >
@@ -527,10 +459,10 @@ export function SettingsView() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Switch
-                        checked={service.is_active ?? true}
+                        checked={service.isActive ?? true}
                         onCheckedChange={(checked) => {
                           const updated = [...services];
-                          updated[index] = { ...updated[index], is_active: checked };
+                          updated[index] = { ...updated[index], isActive: checked };
                           setServices(updated);
                         }}
                       />
@@ -538,6 +470,7 @@ export function SettingsView() {
                         size="sm"
                         onClick={() => updateService.mutate(service as Service)}
                         disabled={updateService.isPending}
+                        data-testid={`button-save-service-${index}`}
                       >
                         <Save className="h-4 w-4" />
                       </Button>
@@ -546,6 +479,7 @@ export function SettingsView() {
                         variant="destructive"
                         onClick={() => service.id && deleteService.mutate(service.id)}
                         disabled={deleteService.isPending}
+                        data-testid={`button-delete-service-${index}`}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -554,24 +488,25 @@ export function SettingsView() {
                 ))}
               </div>
 
-              {/* Add New Service */}
               <div className="flex flex-col md:flex-row gap-3 p-4 rounded-lg border border-dashed">
                 <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3">
                   <Input
                     placeholder={t(language, 'settings.serviceNameArm')}
-                    value={newService.name_arm || ''}
-                    onChange={(e) => setNewService({ ...newService, name_arm: e.target.value })}
+                    value={newService.nameArm || ''}
+                    onChange={(e) => setNewService({ ...newService, nameArm: e.target.value })}
+                    data-testid="input-new-service-arm"
                   />
                   <Input
                     placeholder={t(language, 'settings.serviceNameRu')}
-                    value={newService.name_ru || ''}
-                    onChange={(e) => setNewService({ ...newService, name_ru: e.target.value })}
+                    value={newService.nameRu || ''}
+                    onChange={(e) => setNewService({ ...newService, nameRu: e.target.value })}
+                    data-testid="input-new-service-ru"
                   />
                   <Select
-                    value={String(newService.default_duration_minutes || 30)}
-                    onValueChange={(value) => setNewService({ ...newService, default_duration_minutes: parseInt(value) })}
+                    value={String(newService.defaultDurationMinutes || 30)}
+                    onValueChange={(value) => setNewService({ ...newService, defaultDurationMinutes: parseInt(value) })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger data-testid="select-new-service-duration">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -583,7 +518,8 @@ export function SettingsView() {
                 </div>
                 <Button
                   onClick={() => addService.mutate(newService)}
-                  disabled={addService.isPending || !newService.name_arm || !newService.name_ru}
+                  disabled={addService.isPending || !newService.nameArm || !newService.nameRu}
+                  data-testid="button-add-service"
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   {t(language, 'common.add')}
@@ -593,27 +529,28 @@ export function SettingsView() {
           </Card>
         </TabsContent>
 
-        {/* Integrations Tab */}
         <TabsContent value="integrations">
           <Card className="medical-card">
             <CardHeader>
               <CardTitle>{t(language, 'settings.integrations')}</CardTitle>
+              <CardDescription>Connect Telegram, Google Calendar, and Google Sheets</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-2">
                 <Label>{t(language, 'settings.telegramToken')}</Label>
                 <Input
                   type="password"
-                  placeholder={doctor?.has_telegram_token ? '••••••••••••••••' : '123456789:ABCdefGHIjklMNOpqrsTUVwxyz'}
-                  value={doctorForm.telegram_bot_token || ''}
+                  data-testid="input-telegram-token"
+                  placeholder={doctor?.hasTelegramToken ? '••••••••••••••••' : '123456789:ABCdefGHIjklMNOpqrsTUVwxyz'}
+                  value={doctorForm.telegramBotToken || ''}
                   onChange={(e) => {
-                    setDoctorForm({ ...doctorForm, telegram_bot_token: e.target.value });
+                    setDoctorForm({ ...doctorForm, telegramBotToken: e.target.value });
                     setTokenChanged(true);
                   }}
                 />
                 <p className="text-xs text-muted-foreground">
-                  {doctor?.has_telegram_token ? (
-                    <span className="text-green-600">✓ Token configured - enter new value to update</span>
+                  {doctor?.hasTelegramToken ? (
+                    <span className="text-green-600">Token configured - enter new value to update</span>
                   ) : (
                     'Get your bot token from @BotFather on Telegram'
                   )}
@@ -623,36 +560,67 @@ export function SettingsView() {
               <div className="space-y-2">
                 <Label>Telegram Chat ID</Label>
                 <Input
+                  data-testid="input-telegram-chat-id"
                   placeholder="-1001234567890"
-                  value={doctorForm.telegram_chat_id || ''}
-                  onChange={(e) => setDoctorForm({ ...doctorForm, telegram_chat_id: e.target.value })}
+                  value={doctorForm.telegramChatId || ''}
+                  onChange={(e) => setDoctorForm({ ...doctorForm, telegramChatId: e.target.value })}
                 />
                 <p className="text-xs text-muted-foreground">
                   Your personal chat ID to receive notifications
                 </p>
               </div>
 
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => testTelegram.mutate()}
+                  disabled={testTelegram.isPending || !integrationStatus?.telegram.configured}
+                  data-testid="button-test-telegram"
+                >
+                  <TestTube className="h-4 w-4 mr-2" />
+                  Test Connection
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setupWebhook.mutate()}
+                  disabled={setupWebhook.isPending || !integrationStatus?.telegram.hasBotToken}
+                  data-testid="button-setup-webhook"
+                >
+                  Setup Bot Webhook
+                </Button>
+              </div>
+
               <div className="space-y-2">
                 <Label>{t(language, 'settings.googleCalendarId')}</Label>
                 <Input
+                  data-testid="input-google-calendar-id"
                   placeholder="your-calendar@group.calendar.google.com"
-                  value={doctorForm.google_calendar_id || ''}
-                  onChange={(e) => setDoctorForm({ ...doctorForm, google_calendar_id: e.target.value })}
+                  value={doctorForm.googleCalendarId || ''}
+                  onChange={(e) => setDoctorForm({ ...doctorForm, googleCalendarId: e.target.value })}
                 />
+                {integrationStatus?.googleCalendar.hasServiceAccount ? (
+                  <p className="text-xs text-green-600">Google Service Account configured</p>
+                ) : (
+                  <p className="text-xs text-yellow-600">Google Service Account not configured (contact admin)</p>
+                )}
               </div>
 
               <div className="space-y-2">
                 <Label>{t(language, 'settings.googleSheetId')}</Label>
                 <Input
+                  data-testid="input-google-sheet-id"
                   placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"
-                  value={doctorForm.google_sheet_id || ''}
-                  onChange={(e) => setDoctorForm({ ...doctorForm, google_sheet_id: e.target.value })}
+                  value={doctorForm.googleSheetId || ''}
+                  onChange={(e) => setDoctorForm({ ...doctorForm, googleSheetId: e.target.value })}
                 />
               </div>
 
               <Button 
                 onClick={() => updateDoctor.mutate(doctorForm)}
                 disabled={updateDoctor.isPending}
+                data-testid="button-save-integrations"
               >
                 <Save className="h-4 w-4 mr-2" />
                 {t(language, 'settings.save')}
@@ -661,7 +629,6 @@ export function SettingsView() {
           </Card>
         </TabsContent>
 
-        {/* AI Assistant Tab */}
         <TabsContent value="ai">
           <Card className="medical-card">
             <CardHeader>
@@ -682,29 +649,24 @@ export function SettingsView() {
                   </p>
                 </div>
                 <Switch
-                  checked={doctorForm.ai_enabled ?? false}
-                  onCheckedChange={(checked) => setDoctorForm({ ...doctorForm, ai_enabled: checked })}
+                  checked={doctorForm.aiEnabled ?? false}
+                  onCheckedChange={(checked) => setDoctorForm({ ...doctorForm, aiEnabled: checked })}
+                  data-testid="switch-ai-enabled"
                 />
               </div>
 
               <div className="space-y-2">
                 <Label>{t(language, 'settings.llmApiBaseUrl')}</Label>
                 <Input
-                  placeholder={doctor?.has_llm_base_url ? '••••••••••••••••' : 'https://api.deepseek.com/v1'}
-                  value={doctorForm.llm_api_base_url || ''}
+                  data-testid="input-llm-base-url"
+                  placeholder="https://api.deepseek.com/v1"
+                  value={doctorForm.llmApiBaseUrl || ''}
                   onChange={(e) => {
-                    setDoctorForm({ ...doctorForm, llm_api_base_url: e.target.value });
+                    setDoctorForm({ ...doctorForm, llmApiBaseUrl: e.target.value });
                     setBaseUrlChanged(true);
                   }}
-                  disabled={!doctorForm.ai_enabled}
+                  disabled={!doctorForm.aiEnabled}
                 />
-                <p className="text-xs text-muted-foreground">
-                  {doctor?.has_llm_base_url ? (
-                    <span className="text-green-600">✓ API URL configured - enter new value to update</span>
-                  ) : (
-                    'DeepSeek: https://api.deepseek.com/v1'
-                  )}
-                </p>
               </div>
 
               <div className="space-y-2">
@@ -712,13 +674,14 @@ export function SettingsView() {
                 <div className="relative">
                   <Input
                     type={showApiKey ? 'text' : 'password'}
-                    placeholder={doctor?.has_llm_key ? '••••••••••••••••' : 'sk-...'}
-                    value={doctorForm.llm_api_key || ''}
+                    data-testid="input-llm-api-key"
+                    placeholder={doctor?.hasLlmKey ? '••••••••••••••••' : 'sk-...'}
+                    value={doctorForm.llmApiKey || ''}
                     onChange={(e) => {
-                      setDoctorForm({ ...doctorForm, llm_api_key: e.target.value });
+                      setDoctorForm({ ...doctorForm, llmApiKey: e.target.value });
                       setApiKeyChanged(true);
                     }}
-                    disabled={!doctorForm.ai_enabled}
+                    disabled={!doctorForm.aiEnabled}
                     className="pr-10"
                   />
                   <Button
@@ -727,13 +690,14 @@ export function SettingsView() {
                     size="sm"
                     className="absolute right-0 top-0 h-full px-3"
                     onClick={() => setShowApiKey(!showApiKey)}
+                    data-testid="button-toggle-api-key"
                   >
                     {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {doctor?.has_llm_key ? (
-                    <span className="text-green-600">✓ {t(language, 'settings.aiKeyConfigured')} - enter new value to update</span>
+                  {doctor?.hasLlmKey ? (
+                    <span className="text-green-600">{t(language, 'settings.aiKeyConfigured')} - enter new value to update</span>
                   ) : (
                     <span className="text-yellow-600">{t(language, 'settings.aiKeyNotConfigured')}</span>
                   )}
@@ -743,10 +707,11 @@ export function SettingsView() {
               <div className="space-y-2">
                 <Label>{t(language, 'settings.llmModelName')}</Label>
                 <Input
+                  data-testid="input-llm-model"
                   placeholder="deepseek-chat"
-                  value={doctorForm.llm_model_name || ''}
-                  onChange={(e) => setDoctorForm({ ...doctorForm, llm_model_name: e.target.value })}
-                  disabled={!doctorForm.ai_enabled}
+                  value={doctorForm.llmModelName || ''}
+                  onChange={(e) => setDoctorForm({ ...doctorForm, llmModelName: e.target.value })}
+                  disabled={!doctorForm.aiEnabled}
                 />
                 <p className="text-xs text-muted-foreground">
                   DeepSeek: deepseek-chat, deepseek-coder
@@ -756,6 +721,7 @@ export function SettingsView() {
               <Button 
                 onClick={() => updateDoctor.mutate(doctorForm)}
                 disabled={updateDoctor.isPending}
+                data-testid="button-save-ai"
               >
                 <Save className="h-4 w-4 mr-2" />
                 {t(language, 'settings.save')}
