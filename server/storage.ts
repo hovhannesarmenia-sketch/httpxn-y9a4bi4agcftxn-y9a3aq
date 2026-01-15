@@ -8,6 +8,7 @@ import {
   appointments,
   blockedDays,
   doctorCredentials,
+  telegramSessions,
   InsertUser,
   InsertDoctor,
   InsertService,
@@ -54,7 +55,25 @@ export interface IStorage {
   getBlockedDays(doctorId: string): Promise<BlockedDay[]>;
   createBlockedDay(data: InsertBlockedDay): Promise<BlockedDay>;
   deleteBlockedDay(id: string): Promise<boolean>;
+  
+  getTelegramSession(telegramUserId: string): Promise<TelegramSession | undefined>;
+  upsertTelegramSession(telegramUserId: string, data: Partial<TelegramSessionData>): Promise<TelegramSession>;
+  deleteTelegramSession(telegramUserId: string): Promise<boolean>;
+  
+  getPatientByTelegramUserId(telegramUserId: string): Promise<Patient | undefined>;
 }
+
+export type TelegramSession = typeof telegramSessions.$inferSelect;
+export type TelegramSessionData = {
+  step?: string;
+  language?: 'ARM' | 'RU';
+  patientId?: string;
+  serviceId?: string;
+  selectedDate?: string;
+  selectedTime?: string;
+  durationMinutes?: number;
+  customReason?: string;
+};
 
 export class DatabaseStorage implements IStorage {
   async getUser(id: string): Promise<User | undefined> {
@@ -188,6 +207,36 @@ export class DatabaseStorage implements IStorage {
   async deleteBlockedDay(id: string): Promise<boolean> {
     await db.delete(blockedDays).where(eq(blockedDays.id, id));
     return true;
+  }
+
+  async getTelegramSession(telegramUserId: string): Promise<TelegramSession | undefined> {
+    const [session] = await db.select().from(telegramSessions).where(eq(telegramSessions.telegramUserId, telegramUserId));
+    return session;
+  }
+
+  async upsertTelegramSession(telegramUserId: string, data: Partial<TelegramSessionData>): Promise<TelegramSession> {
+    const existing = await this.getTelegramSession(telegramUserId);
+    if (existing) {
+      const [updated] = await db.update(telegramSessions)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(telegramSessions.telegramUserId, telegramUserId))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(telegramSessions)
+      .values({ telegramUserId, ...data })
+      .returning();
+    return created;
+  }
+
+  async deleteTelegramSession(telegramUserId: string): Promise<boolean> {
+    await db.delete(telegramSessions).where(eq(telegramSessions.telegramUserId, telegramUserId));
+    return true;
+  }
+
+  async getPatientByTelegramUserId(telegramUserId: string): Promise<Patient | undefined> {
+    const [patient] = await db.select().from(patients).where(eq(patients.telegramUserId, telegramUserId));
+    return patient;
   }
 }
 

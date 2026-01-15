@@ -196,6 +196,102 @@ export function generateCalendarKeyboard(options: CalendarKeyboardOptions): obje
   return { inline_keyboard: keyboard };
 }
 
+export interface TimeSlot {
+  time: string;
+  available: boolean;
+}
+
+export function generateTimeSlotKeyboard(
+  slots: TimeSlot[],
+  selectedDate: string,
+  lang: 'ARM' | 'RU'
+): object {
+  const keyboard: Array<Array<{ text: string; callback_data: string }>> = [];
+  
+  const headerText = lang === 'ARM' 
+    ? `\u0538\u0576\u057f\u0580\u0565\u0584 \u056a\u0561\u0574\u0568:` 
+    : 'Выберите время:';
+  keyboard.push([{ text: headerText, callback_data: 'time_header' }]);
+  
+  let row: Array<{ text: string; callback_data: string }> = [];
+  for (const slot of slots) {
+    if (slot.available) {
+      row.push({ text: slot.time, callback_data: `select_time_${selectedDate}_${slot.time}` });
+      if (row.length === 4) {
+        keyboard.push(row);
+        row = [];
+      }
+    }
+  }
+  if (row.length > 0) {
+    keyboard.push(row);
+  }
+  
+  const backText = lang === 'ARM' ? '\u25C0\uFE0F \u0540\u0565\u057f' : '\u25C0\uFE0F Назад';
+  keyboard.push([{ text: backText, callback_data: 'back_to_calendar' }]);
+  
+  return { inline_keyboard: keyboard };
+}
+
+export interface ServiceOption {
+  id: string;
+  name: string;
+  duration: number;
+}
+
+export function generateServiceKeyboard(
+  services: ServiceOption[],
+  lang: 'ARM' | 'RU'
+): object {
+  const keyboard: Array<Array<{ text: string; callback_data: string }>> = [];
+  
+  const headerText = lang === 'ARM' 
+    ? `\u0538\u0576\u057f\u0580\u0565\u0584 \u056e\u0561\u057c\u0561\u0575\u0578\u0582\u0569\u0575\u0578\u0582\u0576\u0568:` 
+    : 'Выберите услугу:';
+  keyboard.push([{ text: headerText, callback_data: 'service_header' }]);
+  
+  for (const service of services) {
+    const durationText = lang === 'ARM' ? `${service.duration} \u0580\u0578\u057a\u0565` : `${service.duration} мин`;
+    keyboard.push([{ 
+      text: `${service.name} (${durationText})`, 
+      callback_data: `select_service_${service.id}` 
+    }]);
+  }
+  
+  const backText = lang === 'ARM' ? '\u25C0\uFE0F \u0540\u0565\u057f' : '\u25C0\uFE0F Назад';
+  keyboard.push([{ text: backText, callback_data: 'back_to_time' }]);
+  
+  return { inline_keyboard: keyboard };
+}
+
+export function generateAvailableTimeSlots(
+  workDayStartTime: string,
+  workDayEndTime: string,
+  slotStepMinutes: number,
+  bookedTimes: string[]
+): TimeSlot[] {
+  const slots: TimeSlot[] = [];
+  
+  const [startHour, startMin] = workDayStartTime.split(':').map(Number);
+  const [endHour, endMin] = workDayEndTime.split(':').map(Number);
+  
+  let currentMinutes = startHour * 60 + startMin;
+  const endMinutes = endHour * 60 + endMin;
+  
+  while (currentMinutes < endMinutes) {
+    const hours = Math.floor(currentMinutes / 60);
+    const mins = currentMinutes % 60;
+    const timeStr = `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+    
+    const isBooked = bookedTimes.includes(timeStr);
+    slots.push({ time: timeStr, available: !isBooked });
+    
+    currentMinutes += slotStepMinutes;
+  }
+  
+  return slots;
+}
+
 export function formatDateForTelegram(dateStr: string, lang: 'ARM' | 'RU'): string {
   const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
   if (!match) return dateStr;

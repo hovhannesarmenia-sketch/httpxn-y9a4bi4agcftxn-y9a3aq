@@ -3,7 +3,16 @@ import { storage } from "./storage";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { createCalendarEvent, deleteCalendarEvent, appendToSheet } from "./services/google";
-import { sendTelegramMessage, setWebhook, deleteWebhook, answerCallbackQuery, generateCalendarKeyboard } from "./services/telegram";
+import { 
+  sendTelegramMessage, 
+  setWebhook, 
+  deleteWebhook, 
+  answerCallbackQuery, 
+  generateCalendarKeyboard,
+  generateTimeSlotKeyboard,
+  generateServiceKeyboard,
+  generateAvailableTimeSlots
+} from "./services/telegram";
 
 const doctorUpdateSchema = z.object({
   firstName: z.string().min(1).optional(),
@@ -631,22 +640,139 @@ export async function registerRoutes(app: Express): Promise<void> {
         }
 
         if (text === '/start') {
+          await storage.deleteTelegramSession(String(chatId));
           await sendTelegramMessage(
             doctor.telegramBotToken,
             chatId,
-            '\u0414\u043e\u0431\u0440\u043e \u043f\u043e\u0436\u0430\u043b\u043e\u0432\u0430\u0442\u044c!\n\n\u042d\u0442\u043e \u0431\u043e\u0442 \u0434\u043b\u044f \u0437\u0430\u043f\u0438\u0441\u0438 \u043d\u0430 \u043f\u0440\u0438\u0435\u043c.\n\u041f\u043e\u043b\u043d\u044b\u0439 \u0444\u0443\u043d\u043a\u0446\u0438\u043e\u043d\u0430\u043b \u0441\u043a\u043e\u0440\u043e \u0431\u0443\u0434\u0435\u0442 \u0434\u043e\u0441\u0442\u0443\u043f\u0435\u043d.',
+            '\u0411\u0430\u0440\u0587 \u0565\u056F\u0561\u056C! / \u0414\u043E\u0431\u0440\u043E \u043F\u043E\u0436\u0430\u043B\u043E\u0432\u0430\u0442\u044C!\n\n\u0538\u0576\u057F\u0580\u0565\u0584 \u056C\u0565\u0566\u0578\u0582\u0568 / Выберите язык:',
             {
               inline_keyboard: [
                 [{ text: '\u0540\u0561\u0575\u0565\u0580\u0565\u0576', callback_data: 'lang_arm' }, { text: '\u0420\u0443\u0441\u0441\u043a\u0438\u0439', callback_data: 'lang_ru' }]
               ]
             }
           );
+        } else {
+          const telegramUserId = String(message.from?.id || chatId);
+          const session = await storage.getTelegramSession(telegramUserId);
+          
+          if (session?.step === 'awaiting_contact' && text) {
+            const lang: 'ARM' | 'RU' = session.language || 'RU';
+            
+            const parts = text.split(',').map((p: string) => p.trim());
+            let firstName = '';
+            let lastName = '';
+            let phoneNumber = '';
+            
+            if (parts.length >= 2) {
+              const nameParts = parts[0].split(' ').filter((p: string) => p.length > 0);
+              firstName = nameParts[0] || '';
+              lastName = nameParts.slice(1).join(' ') || '';
+              phoneNumber = parts[1].replace(/\s/g, '');
+            } else if (parts.length === 1) {
+              const allParts = text.split(' ').filter((p: string) => p.length > 0);
+              const phoneIdx = allParts.findIndex((p: string) => p.startsWith('+') || /^\d{8,}$/.test(p));
+              if (phoneIdx > 0) {
+                firstName = allParts[0];
+                lastName = allParts.slice(1, phoneIdx).join(' ');
+                phoneNumber = allParts.slice(phoneIdx).join('');
+              } else {
+                firstName = allParts[0] || text;
+                lastName = allParts.slice(1).join(' ') || '';
+              }
+            }
+            
+            if (!firstName || firstName.length < 2) {
+              const errorText = lang === 'ARM' 
+                ? '\u053D\u0576\u0564\u0580\u0578\u0582\u0574 \u0565\u0574, \u0574\u0578\u0582\u057F\u0584\u0561\u0563\u0580\u0565\u0584 \u0541\u0565\u0580 \u0561\u0576\u0578\u0582\u0576\u0568 \u0587 \u0570\u0565\u057C\u0561\u056D\u0578\u057D\u0561\u0570\u0561\u0574\u0561\u0580\u0568:\n\u0555\u0580\u056B\u0576\u0561\u056F\u055D \u0531\u0576\u0578\u0582\u0576 \u0531\u0566\u0563\u0561\u0576\u0578\u0582\u0576, +37491234567'
+                : 'Пожалуйста, введите имя и телефон в формате:\nИмя Фамилия, +37491234567';
+              await sendTelegramMessage(doctor.telegramBotToken, chatId, errorText);
+              return res.json({ ok: true });
+            }
+            
+            if (!session.selectedDate || !session.selectedTime) {
+              const restartText = lang === 'ARM' 
+                ? '\u054D\u0565\u057D\u056B\u0561\u0576 \u057D\u056D\u0561\u056C \\u0567 \u057F\u0565\u0572\u056B \u0578\u0582\u0576\u0565\u0581\u0565\u056C: \u0546\u0578\u0580\u056B\u0581 \u057D\u056F\u057D\u0565\u056C \u0570\u0561\u0574\u0561\u0580 \u0563\u0580\u0565\u0584 /start'
+                : '\u0421\u0435\u0441\u0441\u0438\u044F \u0438\u0441\u0442\u0435\u043A\u043B\u0430. \u041D\u0430\u043F\u0438\u0448\u0438\u0442\u0435 /start \u0447\u0442\u043E\u0431\u044B \u043D\u0430\u0447\u0430\u0442\u044C \u0437\u0430\u043D\u043E\u0432\u043E.';
+              await sendTelegramMessage(doctor.telegramBotToken, chatId, restartText);
+              return res.json({ ok: true });
+            }
+            
+            let patient = await storage.getPatientByTelegramUserId(telegramUserId);
+            if (!patient) {
+              patient = await storage.createPatient({
+                telegramUserId,
+                firstName,
+                lastName: lastName || undefined,
+                phoneNumber: phoneNumber || undefined,
+                language: lang as 'ARM' | 'RU'
+              });
+            } else {
+              patient = await storage.updatePatient(patient.id, {
+                firstName,
+                lastName: lastName || undefined,
+                phoneNumber: phoneNumber || undefined
+              }) || patient;
+            }
+            
+            const startDateTime = new Date(`${session.selectedDate}T${session.selectedTime}:00`);
+            
+            const appointment = await storage.createAppointment({
+              doctorId: doctor.id,
+              patientId: patient.id,
+              serviceId: session.serviceId || undefined,
+              startDateTime,
+              durationMinutes: session.durationMinutes || 30,
+              status: 'PENDING'
+            });
+            
+            if (doctor.googleCalendarId && process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
+              try {
+                const service = session.serviceId ? await storage.getService(session.serviceId) : null;
+                const serviceName = service ? (lang === 'ARM' ? service.nameArm : service.nameRu) : '';
+                const eventTitle = `${firstName} ${lastName} - ${serviceName}`.trim();
+                const endDateTime = new Date(startDateTime.getTime() + (session.durationMinutes || 30) * 60 * 1000);
+                
+                const eventResult = await createCalendarEvent(doctor.googleCalendarId, {
+                  summary: eventTitle,
+                  start: { dateTime: startDateTime.toISOString(), timeZone: 'Asia/Yerevan' },
+                  end: { dateTime: endDateTime.toISOString(), timeZone: 'Asia/Yerevan' },
+                  description: `Тел: ${phoneNumber}`
+                });
+                
+                if (eventResult?.id) {
+                  await storage.updateAppointment(appointment.id, { googleCalendarEventId: eventResult.id });
+                }
+              } catch (calError) {
+                console.error('[Webhook] Google Calendar error:', calError);
+              }
+            }
+            
+            await storage.deleteTelegramSession(telegramUserId);
+            
+            const service = session.serviceId ? await storage.getService(session.serviceId) : null;
+            const serviceName = service ? (lang === 'ARM' ? service.nameArm : service.nameRu) : '';
+            
+            const confirmationText = lang === 'ARM' 
+              ? `\u2705 \u0541\u0565\u0580 \u0563\u0580\u0561\u0576\u0581\u0578\u0582\u0574\u0568 \u0570\u0561\u057D\u057F\u0561\u057F\u057E\u0565\u0581!\n\n\u0531\u0574\u057D\u0561\u0569\u056B\u057E: ${session.selectedDate}\n\u053A\u0561\u0574: ${session.selectedTime}\n\u053E\u0561\u057C\u0561\u0575\u0578\u0582\u0569\u0575\u0578\u0582\u0576: ${serviceName}\n\u0531\u0576\u0578\u0582\u0576: ${firstName} ${lastName}\n\u0540\u0565\u057C\u0561\u056D\u0578\u057D: ${phoneNumber}\n\n\u0544\u0565\u0576\u0584 \u056F\u056F\u0561\u057A\u057E\u0565\u0576\u0584 \u0541\u0565\u0566 \u0570\u0565\u057F!`
+              : `\u2705 \u0412\u0430\u0448\u0430 \u0437\u0430\u043F\u0438\u0441\u044C \u043F\u043E\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0435\u043D\u0430!\n\n\u0414\u0430\u0442\u0430: ${session.selectedDate}\n\u0412\u0440\u0435\u043C\u044F: ${session.selectedTime}\n\u0423\u0441\u043B\u0443\u0433\u0430: ${serviceName}\n\u0418\u043C\u044F: ${firstName} ${lastName}\n\u0422\u0435\u043B\u0435\u0444\u043E\u043D: ${phoneNumber}\n\n\u041C\u044B \u0441\u0432\u044F\u0436\u0435\u043C\u0441\u044F \u0441 \u0432\u0430\u043C\u0438!`;
+            await sendTelegramMessage(doctor.telegramBotToken, chatId, confirmationText);
+            
+            if (doctor.telegramChatId) {
+              const notifyText = `\u{1F4C5} \u041D\u043E\u0432\u0430\u044F \u0437\u0430\u043F\u0438\u0441\u044C!\n\n\u041F\u0430\u0446\u0438\u0435\u043D\u0442: ${firstName} ${lastName}\n\u0422\u0435\u043B: ${phoneNumber}\n\u0414\u0430\u0442\u0430: ${session.selectedDate} ${session.selectedTime}\n\u0423\u0441\u043B\u0443\u0433\u0430: ${serviceName}`;
+              try {
+                await sendTelegramMessage(doctor.telegramBotToken, doctor.telegramChatId, notifyText);
+              } catch (notifyErr) {
+                console.error('[Webhook] Failed to notify doctor:', notifyErr);
+              }
+            }
+          }
         }
       } else if (update.callback_query) {
         const callback = update.callback_query;
         const chatId = callback.message?.chat?.id;
         const callbackId = callback.id;
         const data = callback.data;
+        const telegramUserId = String(callback.from?.id || chatId);
         
         if (!chatId || !callbackId) {
           console.log("[Webhook] Invalid callback query");
@@ -661,19 +787,16 @@ export async function registerRoutes(app: Express): Promise<void> {
           console.log("[Webhook] Failed to answer callback query:", e);
         }
         
-        if (data === 'lang_arm' || data === 'lang_ru') {
-          const lang = data === 'lang_arm' ? 'ARM' : 'RU';
-          const now = new Date();
-          
+        const session = await storage.getTelegramSession(telegramUserId);
+        const lang: 'ARM' | 'RU' = session?.language || 'RU';
+        
+        const getAvailabilityMap = async () => {
           const blockedDays = await storage.getBlockedDays(doctor.id);
           const appointments = await storage.getAppointments(doctor.id);
-          
           const availabilityMap = new Map<string, boolean>();
-          
           for (const blocked of blockedDays) {
             availabilityMap.set(blocked.blockedDate, false);
           }
-          
           const appointmentCounts = new Map<string, number>();
           for (const apt of appointments) {
             if (apt.status !== 'CANCELLED_BY_DOCTOR' && apt.status !== 'REJECTED') {
@@ -681,13 +804,63 @@ export async function registerRoutes(app: Express): Promise<void> {
               appointmentCounts.set(dateOnly, (appointmentCounts.get(dateOnly) || 0) + 1);
             }
           }
-          
           const maxSlotsPerDay = 8;
           for (const [date, count] of appointmentCounts) {
             if (count >= maxSlotsPerDay) {
               availabilityMap.set(date, false);
             }
           }
+          return availabilityMap;
+        };
+        
+        if (data === 'lang_arm' || data === 'lang_ru') {
+          const selectedLang = data === 'lang_arm' ? 'ARM' : 'RU';
+          await storage.upsertTelegramSession(telegramUserId, { 
+            language: selectedLang as 'ARM' | 'RU', 
+            step: 'awaiting_date' 
+          });
+          
+          const now = new Date();
+          const availabilityMap = await getAvailabilityMap();
+          
+          const calendarKeyboard = generateCalendarKeyboard({
+            year: now.getFullYear(),
+            month: now.getMonth(),
+            lang: selectedLang as 'ARM' | 'RU',
+            availabilityMap
+          });
+          
+          const selectDateText = selectedLang === 'ARM' 
+            ? '\u0538\u0576\u057f\u0580\u0565\u0584 \u0561\u0574\u057d\u0561\u0569\u056b\u057e\u0568:'
+            : 'Выберите дату:';
+          
+          await sendTelegramMessage(doctor.telegramBotToken, chatId, selectDateText, calendarKeyboard);
+        }
+        
+        else if (data?.startsWith('calendar_nav_')) {
+          const match = data.match(/calendar_nav_(\d+)_(\d+)/);
+          if (match) {
+            const navYear = parseInt(match[1]);
+            const navMonth = parseInt(match[2]);
+            const availabilityMap = await getAvailabilityMap();
+            
+            const calendarKeyboard = generateCalendarKeyboard({
+              year: navYear,
+              month: navMonth,
+              lang: lang,
+              availabilityMap
+            });
+            
+            const selectDateText = lang === 'ARM' 
+              ? '\u0538\u0576\u057f\u0580\u0565\u0584 \u0561\u0574\u057d\u0561\u0569\u056b\u057e\u0568:'
+              : 'Выберите дату:';
+            await sendTelegramMessage(doctor.telegramBotToken, chatId, selectDateText, calendarKeyboard);
+          }
+        }
+        
+        else if (data === 'back_to_calendar') {
+          const now = new Date();
+          const availabilityMap = await getAvailabilityMap();
           
           const calendarKeyboard = generateCalendarKeyboard({
             year: now.getFullYear(),
@@ -699,55 +872,136 @@ export async function registerRoutes(app: Express): Promise<void> {
           const selectDateText = lang === 'ARM' 
             ? '\u0538\u0576\u057f\u0580\u0565\u0584 \u0561\u0574\u057d\u0561\u0569\u056b\u057e\u0568:'
             : 'Выберите дату:';
-          
           await sendTelegramMessage(doctor.telegramBotToken, chatId, selectDateText, calendarKeyboard);
         }
         
-        if (data?.startsWith('calendar_nav_')) {
-          const match = data.match(/calendar_nav_(\d+)_(\d+)/);
-          if (match) {
-            const navYear = parseInt(match[1]);
-            const navMonth = parseInt(match[2]);
-            
-            const blockedDays = await storage.getBlockedDays(doctor.id);
-            const appointments = await storage.getAppointments(doctor.id);
-            
-            const availabilityMap = new Map<string, boolean>();
-            
-            for (const blocked of blockedDays) {
-              availabilityMap.set(blocked.blockedDate, false);
-            }
-            
-            const appointmentCounts = new Map<string, number>();
-            for (const apt of appointments) {
-              if (apt.status !== 'CANCELLED_BY_DOCTOR' && apt.status !== 'REJECTED') {
-                const dateOnly = apt.startDateTime.toISOString().split('T')[0];
-                appointmentCounts.set(dateOnly, (appointmentCounts.get(dateOnly) || 0) + 1);
+        else if (data?.startsWith('select_date_')) {
+          const selectedDate = data.replace('select_date_', '');
+          await storage.upsertTelegramSession(telegramUserId, { 
+            selectedDate, 
+            step: 'awaiting_time' 
+          });
+          
+          const appointments = await storage.getAppointments(doctor.id);
+          const bookedTimes: string[] = [];
+          for (const apt of appointments) {
+            if (apt.status !== 'CANCELLED_BY_DOCTOR' && apt.status !== 'REJECTED') {
+              const aptDate = apt.startDateTime.toISOString().split('T')[0];
+              if (aptDate === selectedDate) {
+                const timeStr = apt.startDateTime.toTimeString().substring(0, 5);
+                bookedTimes.push(timeStr);
               }
             }
+          }
+          
+          const workStart = doctor.workDayStartTime || '09:00';
+          const workEnd = doctor.workDayEndTime || '18:00';
+          const slotStep = doctor.slotStepMinutes || 15;
+          
+          const timeSlots = generateAvailableTimeSlots(workStart, workEnd, slotStep, bookedTimes);
+          const availableSlots = timeSlots.filter(s => s.available);
+          
+          if (availableSlots.length === 0) {
+            const noSlotsText = lang === 'ARM' 
+              ? '\u054E\u0561\u0575, \u0561\u0575\u057D \u0585\u0580\u057E\u0561 \u0570\u0561\u0574\u0561\u0580 \u0561\u0566\u0561\u057F \u056A\u0561\u0574 \u0579\u056F\u0561:' 
+              : 'К сожалению, на эту дату нет свободного времени.';
             
-            const maxSlotsPerDay = 8;
-            for (const [date, count] of appointmentCounts) {
-              if (count >= maxSlotsPerDay) {
-                availabilityMap.set(date, false);
-              }
-            }
-            
+            const now = new Date();
+            const availabilityMap = await getAvailabilityMap();
             const calendarKeyboard = generateCalendarKeyboard({
-              year: navYear,
-              month: navMonth,
-              lang: 'RU',
+              year: now.getFullYear(),
+              month: now.getMonth(),
+              lang: lang,
               availabilityMap
             });
-            
-            await sendTelegramMessage(doctor.telegramBotToken, chatId, 'Выберите дату:', calendarKeyboard);
+            await sendTelegramMessage(doctor.telegramBotToken, chatId, noSlotsText, calendarKeyboard);
+          } else {
+            const keyboard = generateTimeSlotKeyboard(timeSlots, selectedDate, lang);
+            const timePromptText = lang === 'ARM' 
+              ? `\u0538\u0576\u057F\u0580\u0565\u0584 \u056A\u0561\u0574\u0568 (${selectedDate}):`
+              : `Выберите время (${selectedDate}):`;
+            await sendTelegramMessage(doctor.telegramBotToken, chatId, timePromptText, keyboard);
           }
         }
         
-        if (data?.startsWith('select_date_')) {
-          const selectedDate = data.replace('select_date_', '');
-          const confirmText = `Вы выбрали: ${selectedDate}\n\nПолный функционал записи скоро будет доступен.`;
-          await sendTelegramMessage(doctor.telegramBotToken, chatId, confirmText);
+        else if (data?.startsWith('select_time_')) {
+          const match = data.match(/select_time_(\d{4}-\d{2}-\d{2})_(\d{2}:\d{2})/);
+          if (match) {
+            const [, selectedDate, selectedTime] = match;
+            await storage.upsertTelegramSession(telegramUserId, { 
+              selectedDate,
+              selectedTime, 
+              step: 'awaiting_service' 
+            });
+            
+            const doctorServices = await storage.getServices(doctor.id);
+            const activeServices = doctorServices.filter(s => s.isActive);
+            
+            if (activeServices.length === 0) {
+              const noServicesText = lang === 'ARM' 
+                ? '\u054E\u0561\u0575, \u056E\u0561\u057C\u0561\u0575\u0578\u0582\u0569\u0575\u0578\u0582\u0576\u0576\u0565\u0580 \u0579\u056F\u0561\u0576 \u0570\u0561\u057D\u0561\u0576\u0565\u056C\u056B:' 
+                : 'К сожалению, услуги не настроены.';
+              await sendTelegramMessage(doctor.telegramBotToken, chatId, noServicesText);
+            } else {
+              const serviceOptions = activeServices.map(s => ({
+                id: s.id,
+                name: lang === 'ARM' ? s.nameArm : s.nameRu,
+                duration: s.defaultDurationMinutes
+              }));
+              
+              const keyboard = generateServiceKeyboard(serviceOptions, lang);
+              const servicePromptText = lang === 'ARM' 
+                ? `\u0538\u0576\u057F\u0580\u0565\u0584 \u056E\u0561\u057C\u0561\u0575\u0578\u0582\u0569\u0575\u0578\u0582\u0576\u0568 (${selectedDate} ${selectedTime}):`
+                : `Выберите услугу (${selectedDate} ${selectedTime}):`;
+              await sendTelegramMessage(doctor.telegramBotToken, chatId, servicePromptText, keyboard);
+            }
+          }
+        }
+        
+        else if (data === 'back_to_time') {
+          const currentSession = await storage.getTelegramSession(telegramUserId);
+          if (currentSession?.selectedDate) {
+            const appointments = await storage.getAppointments(doctor.id);
+            const bookedTimes: string[] = [];
+            for (const apt of appointments) {
+              if (apt.status !== 'CANCELLED_BY_DOCTOR' && apt.status !== 'REJECTED') {
+                const aptDate = apt.startDateTime.toISOString().split('T')[0];
+                if (aptDate === currentSession.selectedDate) {
+                  const timeStr = apt.startDateTime.toTimeString().substring(0, 5);
+                  bookedTimes.push(timeStr);
+                }
+              }
+            }
+            
+            const workStart = doctor.workDayStartTime || '09:00';
+            const workEnd = doctor.workDayEndTime || '18:00';
+            const slotStep = doctor.slotStepMinutes || 15;
+            
+            const timeSlots = generateAvailableTimeSlots(workStart, workEnd, slotStep, bookedTimes);
+            const keyboard = generateTimeSlotKeyboard(timeSlots, currentSession.selectedDate, lang);
+            const timePromptText = lang === 'ARM' 
+              ? `\u0538\u0576\u057F\u0580\u0565\u0584 \u056A\u0561\u0574\u0568 (${currentSession.selectedDate}):`
+              : `Выберите время (${currentSession.selectedDate}):`;
+            await sendTelegramMessage(doctor.telegramBotToken, chatId, timePromptText, keyboard);
+          }
+        }
+        
+        else if (data?.startsWith('select_service_')) {
+          const serviceId = data.replace('select_service_', '');
+          const service = await storage.getService(serviceId);
+          
+          if (service) {
+            await storage.upsertTelegramSession(telegramUserId, { 
+              serviceId,
+              durationMinutes: service.defaultDurationMinutes,
+              step: 'awaiting_contact' 
+            });
+            
+            const contactPromptText = lang === 'ARM' 
+              ? '\u0544\u0578\u0582\u057F\u0584\u0561\u0563\u0580\u0565\u0584 \u0541\u0565\u0580 \u0561\u0576\u0578\u0582\u0576\u0568 \u0587 \u0570\u0565\u057C\u0561\u056D\u0578\u057D\u0561\u0570\u0561\u0574\u0561\u0580\u0568 \u0570\u0565\u057F\u0587\u0575\u0561\u056C \u0571\u0587\u0578\u057E:\n\u0555\u0580\u056B\u0576\u0561\u056F\u055D \u0531\u0576\u0578\u0582\u0576 \u0531\u0566\u0563\u0561\u0576\u0578\u0582\u0576, +37491234567'
+              : 'Введите ваше имя и номер телефона в формате:\nИмя Фамилия, +37491234567';
+            await sendTelegramMessage(doctor.telegramBotToken, chatId, contactPromptText);
+          }
         }
         
       } else if (update.edited_message) {
