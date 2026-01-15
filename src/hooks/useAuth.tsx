@@ -1,15 +1,34 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
-import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
+import { apiRequest } from '@/lib/queryClient';
 
-// Auth context for managing user authentication state
+interface User {
+  id: string;
+  email: string;
+}
+
+interface Doctor {
+  id: string;
+  userId: string;
+  firstName: string;
+  lastName: string;
+  interfaceLanguage: string | null;
+  workDays: string[] | null;
+  workDayStartTime: string | null;
+  workDayEndTime: string | null;
+  slotStepMinutes: number | null;
+  telegramBotToken: string | null;
+  telegramChatId: string | null;
+  googleCalendarId: string | null;
+  googleSheetId: string | null;
+  aiEnabled: boolean | null;
+}
 
 interface AuthContextType {
   user: User | null;
-  session: Session | null;
+  doctor: Doctor | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -17,56 +36,63 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  const [doctor, setDoctor] = useState<Doctor | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
-      }
-    );
-
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
+    checkAuth();
   }, []);
 
-  const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    return { error: error as Error | null };
+  const checkAuth = async () => {
+    try {
+      const res = await fetch('/api/auth/me', { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setUser(data.user);
+        setDoctor(data.doctor);
+      }
+    } catch (error) {
+      console.error('Auth check failed:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const signUp = async (email: string, password: string) => {
-    const redirectUrl = `${window.location.origin}/`;
-    
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: redirectUrl,
-      },
-    });
-    return { error: error as Error | null };
+  const signIn = async (email: string, password: string) => {
+    try {
+      const res = await apiRequest('POST', '/api/auth/login', { email, password });
+      const data = await res.json();
+      setUser(data.user);
+      setDoctor(data.doctor);
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
+    }
+  };
+
+  const signUp = async (email: string, password: string, firstName: string, lastName: string) => {
+    try {
+      const res = await apiRequest('POST', '/api/auth/register', { email, password, firstName, lastName });
+      const data = await res.json();
+      setUser(data.user);
+      setDoctor(data.doctor);
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
+    }
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      await apiRequest('POST', '/api/auth/logout');
+    } finally {
+      setUser(null);
+      setDoctor(null);
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, doctor, loading, signIn, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   );

@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, isToday } from 'date-fns';
@@ -15,30 +14,30 @@ import { BlockedDaysManager } from './BlockedDaysManager';
 
 type Appointment = {
   id: string;
-  start_date_time: string;
-  duration_minutes: number;
+  startDateTime: string;
+  durationMinutes: number;
   status: 'PENDING' | 'CONFIRMED' | 'REJECTED' | 'CANCELLED_BY_DOCTOR';
-  custom_reason: string | null;
-  patients: {
-    first_name: string;
-    last_name: string | null;
-    phone_number: string | null;
+  customReason: string | null;
+  patient?: {
+    firstName: string;
+    lastName: string | null;
+    phoneNumber: string | null;
   } | null;
-  services: {
-    name_arm: string;
-    name_ru: string;
+  service?: {
+    nameArm: string;
+    nameRu: string;
   } | null;
 };
 
 type BlockedDay = {
   id: string;
-  blocked_date: string;
+  blockedDate: string;
   reason: string | null;
 };
 
 export function CalendarView() {
   const { t, language } = useLanguage();
-  const { user } = useAuth();
+  const { doctor } = useAuth();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -46,108 +45,47 @@ export function CalendarView() {
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [bookingDialogOpen, setBookingDialogOpen] = useState(false);
-  const [doctorId, setDoctorId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   
-  // Multi-select for blocking days
   const [selectedDatesForBlocking, setSelectedDatesForBlocking] = useState<Date[]>([]);
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
 
   const locale = language === 'ARM' ? hy : ru;
 
-  // Create a set of blocked date strings for quick lookup
-  const blockedDatesSet = new Set(blockedDays.map(bd => bd.blocked_date));
-
-  // Fetch doctor linked to current user
-  const fetchDoctor = useCallback(async () => {
-    if (!user?.id) return null;
-    const { data } = await supabase
-      .from('doctor')
-      .select('id')
-      .eq('user_id', user.id)
-      .maybeSingle();
-    if (data) {
-      setDoctorId(data.id);
-    }
-    return data;
-  }, [user?.id]);
+  const blockedDatesSet = new Set(blockedDays.map(bd => bd.blockedDate));
 
   const fetchAppointments = useCallback(async () => {
-    const start = startOfMonth(currentMonth);
-    const end = endOfMonth(currentMonth);
-
-    const { data, error } = await supabase
-      .from('appointments')
-      .select(`
-        id,
-        start_date_time,
-        duration_minutes,
-        status,
-        custom_reason,
-        patients (
-          first_name,
-          last_name,
-          phone_number
-        ),
-        services (
-          name_arm,
-          name_ru
-        )
-      `)
-      .gte('start_date_time', start.toISOString())
-      .lte('start_date_time', end.toISOString())
-      .order('start_date_time', { ascending: true });
-
-    if (!error && data) {
-      setAppointments(data as Appointment[]);
+    try {
+      const res = await fetch('/api/appointments', { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setAppointments(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch appointments:', error);
+    } finally {
+      setLoading(false);
     }
-  }, [currentMonth]);
+  }, []);
 
   const fetchBlockedDays = useCallback(async () => {
-    if (!doctorId) return;
-
-    const { data, error } = await supabase
-      .from('blocked_days')
-      .select('id, blocked_date, reason')
-      .eq('doctor_id', doctorId);
-
-    if (!error && data) {
-      setBlockedDays(data);
+    try {
+      const res = await fetch('/api/blocked-days', { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setBlockedDays(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch blocked days:', error);
     }
-  }, [doctorId]);
+  }, []);
 
   useEffect(() => {
-    fetchDoctor();
-  }, [fetchDoctor]);
-
-  useEffect(() => {
-    if (doctorId) {
+    if (doctor) {
       fetchAppointments();
       fetchBlockedDays();
     }
-
-    const appointmentsChannel = supabase
-      .channel('appointments-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'appointments' },
-        () => fetchAppointments()
-      )
-      .subscribe();
-
-    const blockedDaysChannel = supabase
-      .channel('blocked-days-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'blocked_days' },
-        () => fetchBlockedDays()
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(appointmentsChannel);
-      supabase.removeChannel(blockedDaysChannel);
-    };
-  }, [doctorId, currentMonth, fetchAppointments, fetchBlockedDays, fetchDoctor]);
+  }, [doctor, fetchAppointments, fetchBlockedDays]);
 
   const getDaysInMonth = () => {
     const start = startOfMonth(currentMonth);
@@ -157,7 +95,7 @@ export function CalendarView() {
 
   const getAppointmentsForDay = (date: Date) => {
     return appointments.filter((apt) =>
-      isSameDay(new Date(apt.start_date_time), date)
+      isSameDay(new Date(apt.startDateTime), date)
     );
   };
 
@@ -175,11 +113,10 @@ export function CalendarView() {
 
   const getBlockedDayInfo = (date: Date): BlockedDay | undefined => {
     const dateStr = format(date, 'yyyy-MM-dd');
-    return blockedDays.find(bd => bd.blocked_date === dateStr);
+    return blockedDays.find(bd => bd.blockedDate === dateStr);
   };
 
   const handleDateClick = (date: Date, event: React.MouseEvent) => {
-    // Check for Ctrl/Cmd key for multi-select
     if (event.ctrlKey || event.metaKey) {
       setIsMultiSelectMode(true);
       setSelectedDatesForBlocking(prev => {
@@ -191,7 +128,6 @@ export function CalendarView() {
         return [...prev, date];
       });
     } else if (isMultiSelectMode) {
-      // If in multi-select mode but no ctrl, add to selection
       setSelectedDatesForBlocking(prev => {
         const dateStr = format(date, 'yyyy-MM-dd');
         const isAlreadySelected = prev.some(d => format(d, 'yyyy-MM-dd') === dateStr);
@@ -201,7 +137,6 @@ export function CalendarView() {
         return [...prev, date];
       });
     } else {
-      // Normal click - select single date
       setSelectedDate(date);
     }
   };
@@ -223,9 +158,16 @@ export function CalendarView() {
     setDialogOpen(true);
   };
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
-      {/* Blocked Days Manager - shows when dates are selected for blocking */}
       <BlockedDaysManager
         selectedDates={selectedDatesForBlocking}
         onClearSelection={clearBlockingSelection}
@@ -235,7 +177,6 @@ export function CalendarView() {
       />
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* Calendar */}
         <Card className="xl:col-span-2 medical-card">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-xl font-semibold">
@@ -246,6 +187,7 @@ export function CalendarView() {
                 variant="outline"
                 size="icon"
                 onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
+                data-testid="button-prev-month"
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
@@ -256,6 +198,7 @@ export function CalendarView() {
                   setCurrentMonth(new Date());
                   setSelectedDate(new Date());
                 }}
+                data-testid="button-today"
               >
                 {t('calendar.today')}
               </Button>
@@ -263,24 +206,23 @@ export function CalendarView() {
                 variant="outline"
                 size="icon"
                 onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
+                data-testid="button-next-month"
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
           </CardHeader>
           <CardContent>
-            {/* Multi-select hint */}
             <p className="text-xs text-muted-foreground mb-3">
               {language === 'ARM' 
-                ? 'Ctrl + \u057D\u0565\u0572\u0574\u0565\u056C\u0578\u057E \u056F\u0561\u0580\u0578\u0572 \u0565\u0584 \u0568\u0576\u057F\u0580\u0565\u056C \u0574\u056B \u0584\u0561\u0576\u056B \u0585\u0580' 
+                ? 'Ctrl + սdelays կdelays այdelays օdelays' 
                 : 'Ctrl + клик для выбора нескольких дней для блокировки'}
             </p>
 
-            {/* Weekday Headers */}
             <div className="grid grid-cols-7 mb-2">
               {(language === 'ARM' 
-                ? ['\u0535\u0580\u056F', '\u0535\u0580\u0584', '\u0549\u0580\u0584', '\u0540\u0576\u0563', '\u0548\u0582\u0580', '\u0547\u0562\u0569', '\u053F\u056B\u0580']
-                : ['\u041F\u043D', '\u0412\u0442', '\u0421\u0440', '\u0427\u0442', '\u041F\u0442', '\u0421\u0431', '\u0412\u0441']
+                ? ['Երdelays', 'Delays', 'Delays', 'Delays', 'Delays', 'Delays', 'Delays']
+                : ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
               ).map((day, i) => (
                 <div
                   key={i}
@@ -291,9 +233,7 @@ export function CalendarView() {
               ))}
             </div>
 
-            {/* Calendar Grid */}
             <div className="grid grid-cols-7 gap-1">
-              {/* Empty cells for days before start of month */}
               {Array.from({ length: (startOfMonth(currentMonth).getDay() + 6) % 7 }).map((_, i) => (
                 <div key={`empty-${i}`} className="aspect-square" />
               ))}
@@ -323,6 +263,7 @@ export function CalendarView() {
                       blocked && 'bg-destructive/20 hover:bg-destructive/30',
                       selectedForBlocking && 'ring-2 ring-destructive bg-destructive/10'
                     )}
+                    data-testid={`calendar-day-${format(date, 'yyyy-MM-dd')}`}
                   >
                     <span className={cn(
                       'text-sm',
@@ -332,12 +273,10 @@ export function CalendarView() {
                       {format(date, 'd')}
                     </span>
                     
-                    {/* Blocked indicator */}
                     {blocked && (
                       <CalendarOff className="absolute top-0.5 right-0.5 h-3 w-3 text-destructive" />
                     )}
                     
-                    {/* Appointment indicators */}
                     {!blocked && (confirmedCount > 0 || pendingCount > 0) && (
                       <div className="absolute bottom-1 left-1/2 -translate-x-1/2 flex gap-0.5">
                         {confirmedCount > 0 && (
@@ -355,7 +294,6 @@ export function CalendarView() {
           </CardContent>
         </Card>
 
-        {/* Day Appointments */}
         <Card className="medical-card">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
@@ -367,7 +305,7 @@ export function CalendarView() {
                   <div className="flex items-center gap-1 text-sm text-destructive mt-1">
                     <CalendarOff className="h-4 w-4" />
                     <span>
-                      {language === 'ARM' ? '\u0555\u0580\u0568 \u0561\u0580\u0563\u0565\u056C\u0561\u0583\u0561\u056F\u057E\u0561\u056E \u0567' : 'День заблокирован'}
+                      {language === 'ARM' ? 'Օdelays աdelays' : 'День заблокирован'}
                       {selectedDateBlockedInfo.reason && `: ${selectedDateBlockedInfo.reason}`}
                     </span>
                   </div>
@@ -382,9 +320,10 @@ export function CalendarView() {
                 onClick={() => setBookingDialogOpen(true)}
                 className="gap-1"
                 disabled={selectedDateBlockedInfo !== undefined}
+                data-testid="button-new-appointment"
               >
                 <Plus className="h-4 w-4" />
-                <span className="hidden sm:inline">{language === 'ARM' ? '\u0546\u0578\u0580' : 'Новая'}</span>
+                <span className="hidden sm:inline">{language === 'ARM' ? 'Նdelays' : 'Новая'}</span>
               </Button>
             </div>
           </CardHeader>
@@ -394,7 +333,7 @@ export function CalendarView() {
                 <CalendarOff className="h-12 w-12 text-destructive/50 mx-auto mb-2" />
                 <p className="text-muted-foreground">
                   {language === 'ARM' 
-                    ? '\u0531\u0575\u057D \u0585\u0580\u0568 \u0563\u0580\u0561\u0576\u0581\u0578\u0582\u0574 \u0570\u0576\u0561\u0580\u0561\u057E\u0578\u0580 \u0579\u0567' 
+                    ? 'Aйdelays оdelays гdelays delays' 
                     : 'В этот день запись недоступна'}
                 </p>
               </div>
@@ -408,13 +347,14 @@ export function CalendarView() {
                   key={apt.id}
                   onClick={() => handleAppointmentClick(apt)}
                   className="w-full text-left p-3 rounded-lg border bg-card hover:shadow-md transition-all animate-fade-in"
+                  data-testid={`appointment-${apt.id}`}
                 >
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div className="flex items-center gap-2 text-sm font-medium">
                       <Clock className="h-4 w-4 text-primary" />
-                      {format(new Date(apt.start_date_time), 'HH:mm')}
+                      {format(new Date(apt.startDateTime), 'HH:mm')}
                       <span className="text-muted-foreground">
-                        ({apt.duration_minutes} {t('appointment.minutes')})
+                        ({apt.durationMinutes} {t('appointment.minutes')})
                       </span>
                     </div>
                     <StatusBadge status={apt.status} />
@@ -422,17 +362,17 @@ export function CalendarView() {
                   <div className="flex items-center gap-2 text-sm">
                     <User className="h-4 w-4 text-muted-foreground" />
                     <span>
-                      {apt.patients?.first_name} {apt.patients?.last_name}
+                      {apt.patient?.firstName} {apt.patient?.lastName}
                     </span>
                   </div>
-                  {apt.services && (
+                  {apt.service && (
                     <p className="text-xs text-muted-foreground mt-1">
-                      {language === 'ARM' ? apt.services.name_arm : apt.services.name_ru}
+                      {language === 'ARM' ? apt.service.nameArm : apt.service.nameRu}
                     </p>
                   )}
-                  {apt.custom_reason && (
+                  {apt.customReason && (
                     <p className="text-xs text-muted-foreground mt-1 italic">
-                      {apt.custom_reason}
+                      {apt.customReason}
                     </p>
                   )}
                 </button>
@@ -441,7 +381,6 @@ export function CalendarView() {
           </CardContent>
         </Card>
 
-        {/* Appointment Dialog */}
         <AppointmentDialog
           appointment={selectedAppointment}
           open={dialogOpen}
@@ -449,7 +388,6 @@ export function CalendarView() {
           onUpdate={fetchAppointments}
         />
 
-        {/* Manual Booking Dialog */}
         <ManualBookingDialog
           open={bookingDialogOpen}
           onOpenChange={setBookingDialogOpen}

@@ -9,7 +9,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
+import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { ru, hy } from 'date-fns/locale';
@@ -18,26 +18,19 @@ import { cn } from '@/lib/utils';
 
 type Appointment = {
   id: string;
-  start_date_time: string;
-  duration_minutes: number;
+  startDateTime: string;
+  durationMinutes: number;
   status: 'PENDING' | 'CONFIRMED' | 'REJECTED' | 'CANCELLED_BY_DOCTOR';
-  custom_reason: string | null;
-  patients: {
-    first_name: string;
-    last_name: string | null;
-    phone_number: string | null;
+  customReason: string | null;
+  patient?: {
+    firstName: string;
+    lastName: string | null;
+    phoneNumber: string | null;
   } | null;
-  services: {
-    name_arm: string;
-    name_ru: string;
+  service?: {
+    nameArm: string;
+    nameRu: string;
   } | null;
-};
-
-type Doctor = {
-  id: string;
-  work_day_start_time: string | null;
-  work_day_end_time: string | null;
-  slot_step_minutes: number | null;
 };
 
 interface AppointmentDialogProps {
@@ -49,15 +42,13 @@ interface AppointmentDialogProps {
 
 export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }: AppointmentDialogProps) {
   const { t, language } = useLanguage();
-  const { user } = useAuth();
+  const { doctor } = useAuth();
   const { toast } = useToast();
   const [duration, setDuration] = useState<string>('');
   const [rejectionReason, setRejectionReason] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
-  const [doctor, setDoctor] = useState<Doctor | null>(null);
 
-  // Edit form state
   const [editDate, setEditDate] = useState<Date | undefined>();
   const [editTime, setEditTime] = useState<string>('');
   const [editDuration, setEditDuration] = useState<string>('');
@@ -67,39 +58,24 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
 
   useEffect(() => {
     if (open && appointment) {
-      // Reset edit mode when opening
       setIsEditMode(false);
       setDuration('');
       setRejectionReason('');
       
-      // Initialize edit form values
-      const appointmentDate = new Date(appointment.start_date_time);
+      const appointmentDate = new Date(appointment.startDateTime);
       setEditDate(appointmentDate);
       setEditTime(format(appointmentDate, 'HH:mm'));
-      setEditDuration(appointment.duration_minutes.toString());
-      setEditNotes(appointment.custom_reason || '');
-      
-      // Fetch doctor for time slots
-      fetchDoctor();
+      setEditDuration(appointment.durationMinutes.toString());
+      setEditNotes(appointment.customReason || '');
     }
   }, [open, appointment]);
-
-  const fetchDoctor = async () => {
-    if (!user?.id) return;
-    const { data } = await supabase
-      .from('doctor')
-      .select('id, work_day_start_time, work_day_end_time, slot_step_minutes')
-      .eq('user_id', user.id)
-      .maybeSingle();
-    if (data) setDoctor(data);
-  };
 
   const generateTimeSlots = () => {
     if (!doctor) return [];
     
-    const startTime = doctor.work_day_start_time || '09:00:00';
-    const endTime = doctor.work_day_end_time || '18:00:00';
-    const step = doctor.slot_step_minutes || 15;
+    const startTime = doctor.workDayStartTime || '09:00:00';
+    const endTime = doctor.workDayEndTime || '18:00:00';
+    const step = doctor.slotStepMinutes || 15;
 
     const slots: string[] = [];
     const [startHour, startMin] = startTime.split(':').map(Number);
@@ -124,29 +100,25 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
 
   const handleConfirm = async () => {
     setIsLoading(true);
-    const finalDuration = duration ? parseInt(duration) : appointment.duration_minutes;
+    const finalDuration = duration ? parseInt(duration) : appointment.durationMinutes;
 
-    const { error } = await supabase
-      .from('appointments')
-      .update({
+    try {
+      await apiRequest('PATCH', `/api/appointments/${appointment.id}`, {
         status: 'CONFIRMED',
-        duration_minutes: finalDuration,
-      })
-      .eq('id', appointment.id);
-
-    if (error) {
-      toast({
-        title: t('common.error'),
-        description: error.message,
-        variant: 'destructive',
+        durationMinutes: finalDuration,
       });
-    } else {
       toast({
         title: t('common.success'),
         description: t('appointment.confirmed'),
       });
       onUpdate();
       onOpenChange(false);
+    } catch (error: any) {
+      toast({
+        title: t('common.error'),
+        description: error.message,
+        variant: 'destructive',
+      });
     }
     setIsLoading(false);
   };
@@ -154,27 +126,23 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
   const handleReject = async () => {
     setIsLoading(true);
 
-    const { error } = await supabase
-      .from('appointments')
-      .update({
+    try {
+      await apiRequest('PATCH', `/api/appointments/${appointment.id}`, {
         status: 'REJECTED',
-        rejection_reason: rejectionReason || null,
-      })
-      .eq('id', appointment.id);
-
-    if (error) {
-      toast({
-        title: t('common.error'),
-        description: error.message,
-        variant: 'destructive',
+        rejectionReason: rejectionReason || null,
       });
-    } else {
       toast({
         title: t('common.success'),
         description: t('appointment.rejected'),
       });
       onUpdate();
       onOpenChange(false);
+    } catch (error: any) {
+      toast({
+        title: t('common.error'),
+        description: error.message,
+        variant: 'destructive',
+      });
     }
     setIsLoading(false);
     setRejectionReason('');
@@ -183,43 +151,24 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
   const handleCancel = async () => {
     setIsLoading(true);
 
-    const { error } = await supabase
-      .from('appointments')
-      .update({
+    try {
+      await apiRequest('PATCH', `/api/appointments/${appointment.id}`, {
         status: 'CANCELLED_BY_DOCTOR',
-        rejection_reason: rejectionReason || null,
-      })
-      .eq('id', appointment.id);
-
-    if (error) {
+        rejectionReason: rejectionReason || null,
+      });
+      toast({
+        title: t('common.success'),
+        description: t('appointment.cancelled'),
+      });
+      onUpdate();
+      onOpenChange(false);
+    } catch (error: any) {
       toast({
         title: t('common.error'),
         description: error.message,
         variant: 'destructive',
       });
-      setIsLoading(false);
-      return;
     }
-
-    // Send Telegram notification to patient
-    try {
-      await supabase.functions.invoke('notify-patient-cancellation', {
-        body: { 
-          appointmentId: appointment.id, 
-          reason: rejectionReason || null 
-        }
-      });
-    } catch (notifyError) {
-      console.error('Failed to notify patient:', notifyError);
-      // Don't block the UI if notification fails
-    }
-
-    toast({
-      title: t('common.success'),
-      description: t('appointment.cancelled'),
-    });
-    onUpdate();
-    onOpenChange(false);
     setIsLoading(false);
     setRejectionReason('');
   };
@@ -228,7 +177,7 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
     if (!editDate || !editTime) {
       toast({
         title: t('common.error'),
-        description: language === 'ARM' ? '\u0538\u0576\u057F\u0580\u0565\u0584 \u0561\u0574\u057D\u0561\u0569\u056B\u057E\u0568 \u0587 \u056A\u0561\u0574\u0568' : 'Выберите дату и время',
+        description: language === 'ARM' ? 'Ընdelays' : 'Выберите дату и время',
         variant: 'destructive',
       });
       return;
@@ -236,42 +185,29 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
 
     setIsLoading(true);
 
-    // Create new datetime
     const [hours, minutes] = editTime.split(':').map(Number);
     const newDateTime = new Date(editDate);
     newDateTime.setHours(hours, minutes, 0, 0);
 
-    const { error } = await supabase
-      .from('appointments')
-      .update({
-        start_date_time: newDateTime.toISOString(),
-        duration_minutes: parseInt(editDuration),
-        custom_reason: editNotes.trim() || null,
-      })
-      .eq('id', appointment.id);
-
-    if (error) {
-      if (error.message.includes('overlap')) {
-        toast({
-          title: t('common.error'),
-          description: language === 'ARM' ? '\u053A\u0561\u0574\u0568 \u0566\u0562\u0561\u0572\u057E\u0561\u056E \u0567' : 'Время занято другой записью',
-          variant: 'destructive',
-        });
-      } else {
-        toast({
-          title: t('common.error'),
-          description: error.message,
-          variant: 'destructive',
-        });
-      }
-    } else {
+    try {
+      await apiRequest('PATCH', `/api/appointments/${appointment.id}`, {
+        startDateTime: newDateTime.toISOString(),
+        durationMinutes: parseInt(editDuration),
+        customReason: editNotes.trim() || null,
+      });
       toast({
         title: t('common.success'),
-        description: language === 'ARM' ? '\u0533\u0580\u0561\u0576\u0581\u0578\u0582\u0574\u0568 \u0569\u0561\u0580\u0574\u0561\u0581\u057E\u0565\u056C \u0567' : 'Запись обновлена',
+        description: language === 'ARM' ? 'Գdelays' : 'Запись обновлена',
       });
       setIsEditMode(false);
       onUpdate();
       onOpenChange(false);
+    } catch (error: any) {
+      toast({
+        title: t('common.error'),
+        description: error.message,
+        variant: 'destructive',
+      });
     }
     setIsLoading(false);
   };
@@ -285,7 +221,7 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
           <div className="flex items-center justify-between">
             <DialogTitle>
               {isEditMode 
-                ? (language === 'ARM' ? 'Khsmkum granchum' : 'Редактирование записи')
+                ? (language === 'ARM' ? 'Խdelays' : 'Редактирование записи')
                 : t('appointment.new')
               }
             </DialogTitle>
@@ -296,6 +232,7 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
                   size="sm"
                   onClick={() => setIsEditMode(true)}
                   className="h-8 w-8 p-0"
+                  data-testid="button-edit-appointment"
                 >
                   <Pencil className="h-4 w-4" />
                 </Button>
@@ -306,31 +243,28 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {/* Patient Info - Always shown */}
           <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
             <User className="h-5 w-5 text-primary mt-0.5" />
             <div>
               <p className="font-medium">
-                {appointment.patients?.first_name} {appointment.patients?.last_name}
+                {appointment.patient?.firstName} {appointment.patient?.lastName}
               </p>
-              {appointment.patients?.phone_number && (
+              {appointment.patient?.phoneNumber && (
                 <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
                   <Phone className="h-3 w-3" />
-                  {appointment.patients.phone_number}
+                  {appointment.patient.phoneNumber}
                 </p>
               )}
             </div>
           </div>
 
-          {/* Edit Mode */}
           {isEditMode ? (
             <>
-              {/* Date and Time */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <CalendarIcon className="h-4 w-4" />
-                    {language === 'ARM' ? 'Amsativ' : 'Дата'}
+                    {language === 'ARM' ? 'Ամdelays' : 'Дата'}
                   </Label>
                   <Popover>
                     <PopoverTrigger asChild>
@@ -341,7 +275,7 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
                           !editDate && 'text-muted-foreground'
                         )}
                       >
-                        {editDate ? format(editDate, 'PPP', { locale }) : (language === 'ARM' ? 'Yntreq' : 'Выберите')}
+                        {editDate ? format(editDate, 'PPP', { locale }) : (language === 'ARM' ? ' Delays' : 'Выберите')}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
@@ -359,11 +293,11 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <Clock className="h-4 w-4" />
-                    {language === 'ARM' ? 'Zham' : 'Время'}
+                    {language === 'ARM' ? 'Ժdelays' : 'Время'}
                   </Label>
                   <Select value={editTime} onValueChange={setEditTime}>
                     <SelectTrigger>
-                      <SelectValue placeholder={language === 'ARM' ? 'Yntreq' : 'Выберите'} />
+                      <SelectValue placeholder={language === 'ARM' ? 'Ůdelays' : 'Выберите'} />
                     </SelectTrigger>
                     <SelectContent>
                       {generateTimeSlots().map((time) => (
@@ -376,9 +310,8 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
                 </div>
               </div>
 
-              {/* Duration */}
               <div className="space-y-2">
-                <Label>{language === 'ARM' ? 'Tevoghutyun (rope)' : 'Длительность (мин)'}</Label>
+                <Label>{language === 'ARM' ? 'Տdelays' : 'Длительность (мин)'}</Label>
                 <Select value={editDuration} onValueChange={setEditDuration}>
                   <SelectTrigger>
                     <SelectValue />
@@ -386,34 +319,32 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
                   <SelectContent>
                     {[15, 30, 45, 60, 90, 120].map((min) => (
                       <SelectItem key={min} value={min.toString()}>
-                        {min} {language === 'ARM' ? 'rope' : 'мин'}
+                        {min} {language === 'ARM' ? ' delays' : 'мин'}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Notes */}
               <div className="space-y-2">
-                <Label>{language === 'ARM' ? 'Nshumner' : 'Примечание'}</Label>
+                <Label>{language === 'ARM' ? 'Նdelays' : 'Примечание'}</Label>
                 <Textarea
                   value={editNotes}
                   onChange={(e) => setEditNotes(e.target.value)}
-                  placeholder={language === 'ARM' ? 'Havelvats teghekutyun...' : 'Дополнительная информация...'}
+                  placeholder={language === 'ARM' ? 'Հdelays' : 'Дополнительная информация...'}
                   rows={2}
                 />
               </div>
             </>
           ) : (
             <>
-              {/* View Mode - Appointment Details */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50">
                   <CalendarIcon className="h-4 w-4 text-primary" />
                   <div>
                     <p className="text-xs text-muted-foreground">{t('appointment.date')}</p>
                     <p className="text-sm font-medium">
-                      {format(new Date(appointment.start_date_time), 'd MMM yyyy', { locale })}
+                      {format(new Date(appointment.startDateTime), 'd MMM yyyy', { locale })}
                     </p>
                   </div>
                 </div>
@@ -422,50 +353,46 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
                   <div>
                     <p className="text-xs text-muted-foreground">{t('appointment.time')}</p>
                     <p className="text-sm font-medium">
-                      {format(new Date(appointment.start_date_time), 'HH:mm')}
+                      {format(new Date(appointment.startDateTime), 'HH:mm')}
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* Duration display */}
               <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50">
                 <Clock className="h-4 w-4 text-primary" />
                 <div>
                   <p className="text-xs text-muted-foreground">{t('appointment.duration')}</p>
-                  <p className="text-sm font-medium">{appointment.duration_minutes} {t('appointment.minutes')}</p>
+                  <p className="text-sm font-medium">{appointment.durationMinutes} {t('appointment.minutes')}</p>
                 </div>
               </div>
 
-              {/* Service */}
-              {appointment.services && (
+              {appointment.service && (
                 <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
                   <FileText className="h-5 w-5 text-primary mt-0.5" />
                   <div>
                     <p className="text-xs text-muted-foreground">{t('appointment.service')}</p>
                     <p className="font-medium">
-                      {language === 'ARM' ? appointment.services.name_arm : appointment.services.name_ru}
+                      {language === 'ARM' ? appointment.service.nameArm : appointment.service.nameRu}
                     </p>
                   </div>
                 </div>
               )}
 
-              {/* Custom Reason */}
-              {appointment.custom_reason && (
+              {appointment.customReason && (
                 <div className="p-3 rounded-lg bg-muted/50">
                   <p className="text-xs text-muted-foreground mb-1">{t('appointment.reason')}</p>
-                  <p className="text-sm">{appointment.custom_reason}</p>
+                  <p className="text-sm">{appointment.customReason}</p>
                 </div>
               )}
 
-              {/* Actions for PENDING */}
               {appointment.status === 'PENDING' && (
                 <>
                   <div className="space-y-2">
                     <Label>{t('appointment.duration')}</Label>
                     <Select value={duration} onValueChange={setDuration}>
                       <SelectTrigger>
-                        <SelectValue placeholder={`${appointment.duration_minutes} ${t('appointment.minutes')}`} />
+                        <SelectValue placeholder={`${appointment.durationMinutes} ${t('appointment.minutes')}`} />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="30">30 {t('appointment.minutes')}</SelectItem>
@@ -480,21 +407,20 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
                     <Textarea
                       value={rejectionReason}
                       onChange={(e) => setRejectionReason(e.target.value)}
-                      placeholder={language === 'RU' ? 'Причина отказа (необязательно)' : 'Merjman patchar (oche pahtakan)'}
+                      placeholder={language === 'RU' ? 'Причина отказа (необязательно)' : 'Delays'}
                       maxLength={150}
                     />
                   </div>
                 </>
               )}
 
-              {/* Actions for CONFIRMED */}
               {appointment.status === 'CONFIRMED' && (
                 <div className="space-y-2">
                   <Label>{t('appointment.rejectionReason')}</Label>
                     <Textarea
                       value={rejectionReason}
                       onChange={(e) => setRejectionReason(e.target.value)}
-                      placeholder={language === 'RU' ? 'Причина отмены' : 'Cheghman patchar'}
+                      placeholder={language === 'RU' ? 'Причина отмены' : 'Delays'}
                       maxLength={150}
                     />
                 </div>
@@ -517,6 +443,7 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
                 onClick={handleSaveEdit}
                 disabled={isLoading}
                 className="flex items-center gap-2"
+                data-testid="button-save-appointment"
               >
                 <Save className="h-4 w-4" />
                 {language === 'ARM' ? 'Delays' : 'Сохранить'}
@@ -531,6 +458,7 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
                     onClick={handleReject}
                     disabled={isLoading}
                     className="flex items-center gap-2"
+                    data-testid="button-reject-appointment"
                   >
                     <X className="h-4 w-4" />
                     {t('appointment.reject')}
@@ -539,6 +467,7 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
                     onClick={handleConfirm}
                     disabled={isLoading}
                     className="flex items-center gap-2 bg-success hover:bg-success/90"
+                    data-testid="button-confirm-appointment"
                   >
                     <Check className="h-4 w-4" />
                     {t('appointment.approve')}
@@ -551,6 +480,7 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
                   onClick={handleCancel}
                   disabled={isLoading}
                   className="flex items-center gap-2"
+                  data-testid="button-cancel-appointment"
                 >
                   <Ban className="h-4 w-4" />
                   {t('appointment.cancel')}
