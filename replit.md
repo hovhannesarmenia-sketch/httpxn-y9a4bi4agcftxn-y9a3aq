@@ -78,8 +78,9 @@ npm run build        # Build for production
 - [x] Google Sheets sync endpoint ported with Zod validation
 - [x] Telegram webhook ported with callback query support
 - [x] DiagnosticsView migrated to use backend API
+- [x] Calendar keyboard UI with month/year header, 7-day grid, availability check, navigation
 - [ ] PatientsView migrated
-- [ ] Full Telegram booking flow (from Supabase functions)
+- [ ] Full Telegram booking flow (time slot selection, patient info, confirmation)
 
 ## User Preferences
 - Interface languages: Armenian (ARM), Russian (RU)
