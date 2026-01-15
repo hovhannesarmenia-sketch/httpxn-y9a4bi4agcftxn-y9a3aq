@@ -3,6 +3,7 @@ import session from "express-session";
 import { createServer } from "http";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { startReminderService } from "./services/reminders";
 
 declare module "express-session" {
   interface SessionData {
@@ -81,5 +82,6 @@ app.use((req, res, next) => {
     host: "0.0.0.0",
   }, () => {
     log(`serving on port ${port}`);
+    startReminderService();
   });
 })();

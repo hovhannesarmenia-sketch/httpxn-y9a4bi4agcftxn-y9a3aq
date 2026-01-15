@@ -111,6 +111,8 @@ export const telegramSessions = pgTable("telegram_sessions", {
   selectedTime: text("selected_time"),
   durationMinutes: integer("duration_minutes"),
   customReason: text("custom_reason"),
+  firstName: varchar("first_name", { length: 100 }),
+  lastName: varchar("last_name", { length: 100 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

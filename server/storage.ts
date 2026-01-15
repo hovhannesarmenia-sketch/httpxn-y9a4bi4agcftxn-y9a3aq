@@ -9,6 +9,7 @@ import {
   blockedDays,
   doctorCredentials,
   telegramSessions,
+  reminderLogs,
   InsertUser,
   InsertDoctor,
   InsertService,
@@ -61,6 +62,9 @@ export interface IStorage {
   deleteTelegramSession(telegramUserId: string): Promise<boolean>;
   
   getPatientByTelegramUserId(telegramUserId: string): Promise<Patient | undefined>;
+  
+  hasReminderBeenSent(appointmentId: string, reminderType: 'BEFORE_24H' | 'BEFORE_2H'): Promise<boolean>;
+  createReminderLog(appointmentId: string, reminderType: 'BEFORE_24H' | 'BEFORE_2H'): Promise<void>;
 }
 
 export type TelegramSession = typeof telegramSessions.$inferSelect;
@@ -73,6 +77,8 @@ export type TelegramSessionData = {
   selectedTime?: string;
   durationMinutes?: number;
   customReason?: string;
+  firstName?: string;
+  lastName?: string;
 };
 
 export class DatabaseStorage implements IStorage {
@@ -171,8 +177,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAppointments(doctorId: string, startDate?: Date, endDate?: Date): Promise<Appointment[]> {
-    let query = db.select().from(appointments).where(eq(appointments.doctorId, doctorId));
-    return query.orderBy(desc(appointments.startDateTime));
+    if (startDate && endDate) {
+      return db.select().from(appointments)
+        .where(and(
+          eq(appointments.doctorId, doctorId),
+          gte(appointments.startDateTime, startDate),
+          lte(appointments.startDateTime, endDate)
+        ))
+        .orderBy(desc(appointments.startDateTime));
+    }
+    return db.select().from(appointments)
+      .where(eq(appointments.doctorId, doctorId))
+      .orderBy(desc(appointments.startDateTime));
   }
 
   async getAppointment(id: string): Promise<Appointment | undefined> {
@@ -237,6 +253,20 @@ export class DatabaseStorage implements IStorage {
   async getPatientByTelegramUserId(telegramUserId: string): Promise<Patient | undefined> {
     const [patient] = await db.select().from(patients).where(eq(patients.telegramUserId, telegramUserId));
     return patient;
+  }
+
+  async hasReminderBeenSent(appointmentId: string, reminderType: 'BEFORE_24H' | 'BEFORE_2H'): Promise<boolean> {
+    const [existing] = await db.select()
+      .from(reminderLogs)
+      .where(and(
+        eq(reminderLogs.appointmentId, appointmentId),
+        eq(reminderLogs.reminderType, reminderType)
+      ));
+    return !!existing;
+  }
+
+  async createReminderLog(appointmentId: string, reminderType: 'BEFORE_24H' | 'BEFORE_2H'): Promise<void> {
+    await db.insert(reminderLogs).values({ appointmentId, reminderType });
   }
 }
 
