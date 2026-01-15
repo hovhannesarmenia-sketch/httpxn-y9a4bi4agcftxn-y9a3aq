@@ -79,8 +79,10 @@ npm run build        # Build for production
 - [x] Telegram webhook ported with callback query support
 - [x] DiagnosticsView migrated to use backend API
 - [x] Calendar keyboard UI with month/year header, 7-day grid, availability check, navigation
+- [x] Full Telegram booking flow (Date → Time → Service → Name → Phone with validation)
+- [x] Smart notifications (simple for patient, detailed for doctor's admin chat)
+- [x] Automatic 24-hour appointment reminders via node-cron service
 - [ ] PatientsView migrated
-- [ ] Full Telegram booking flow (time slot selection, patient info, confirmation)
 
 ## User Preferences
 - Interface languages: Armenian (ARM), Russian (RU)
