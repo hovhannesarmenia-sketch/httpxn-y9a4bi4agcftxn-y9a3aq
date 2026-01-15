@@ -3,7 +3,7 @@ import { storage } from "./storage";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { createCalendarEvent, deleteCalendarEvent, appendToSheet } from "./services/google";
-import { sendTelegramMessage, setWebhook, answerCallbackQuery } from "./services/telegram";
+import { sendTelegramMessage, setWebhook, deleteWebhook, answerCallbackQuery, generateCalendarKeyboard } from "./services/telegram";
 
 const doctorUpdateSchema = z.object({
   firstName: z.string().min(1).optional(),
@@ -578,9 +578,17 @@ export async function registerRoutes(app: Express): Promise<void> {
         return res.status(400).json({ error: "Telegram bot token not configured" });
       }
 
-      const webhookUrl = `${process.env.REPLIT_DEV_DOMAIN || 'https://' + process.env.REPL_SLUG + '.' + process.env.REPL_OWNER + '.repl.co'}/api/telegram-webhook`;
+      const domainsEnv = process.env.REPLIT_DOMAINS || process.env.REPLIT_DEV_DOMAIN;
+      if (!domainsEnv) {
+        return res.status(500).json({ error: "Could not determine webhook URL - no domain configured" });
+      }
+      const domain = domainsEnv.split(',')[0].trim();
+      const webhookUrl = `https://${domain}/api/telegram-webhook`;
       
+      await deleteWebhook(doctor.telegramBotToken);
       await setWebhook(doctor.telegramBotToken, webhookUrl);
+      
+      console.log("[Webhook] Force reset webhook to:", webhookUrl);
       res.json({ success: true, webhookUrl });
     } catch (error) {
       console.error("Webhook setup error:", error);
@@ -655,11 +663,91 @@ export async function registerRoutes(app: Express): Promise<void> {
         
         if (data === 'lang_arm' || data === 'lang_ru') {
           const lang = data === 'lang_arm' ? 'ARM' : 'RU';
-          const welcomeText = lang === 'ARM' 
-            ? '\u053c\u0565\u0566\u0578\u0582 \u0568\u0576\u057f\u0580\u057e\u0565\u0581!\n\n\u0540\u0580\u0561\u0574\u0561\u0576\u0576\u0565\u0580\u056b \u0570\u0576\u0561\u0580\u0561\u057e\u0578\u0580\u0578\u0582\u0569\u0575\u0578\u0582\u0576\u0568 \u0577\u0578\u0582\u057f\u0578\u057e \\u056f\u0570\u0561\u057d\u0561\u0576\u0565\u056c\u056b \u056c\u056b\u0576\u0565\u056c\u0578\u0582.'
-            : '\u042f\u0437\u044b\u043a \u0432\u044b\u0431\u0440\u0430\u043d!\n\n\u0412\u043e\u0437\u043c\u043e\u0436\u043d\u043e\u0441\u0442\u044c \u0437\u0430\u043f\u0438\u0441\u0438 \u043d\u0430 \u043f\u0440\u0438\u0435\u043c \u0441\u043a\u043e\u0440\u043e \u0431\u0443\u0434\u0435\u0442 \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u0430.';
+          const now = new Date();
           
-          await sendTelegramMessage(doctor.telegramBotToken, chatId, welcomeText);
+          const blockedDays = await storage.getBlockedDays(doctor.id);
+          const appointments = await storage.getAppointments(doctor.id);
+          
+          const availabilityMap = new Map<string, boolean>();
+          
+          for (const blocked of blockedDays) {
+            availabilityMap.set(blocked.blockedDate, false);
+          }
+          
+          const appointmentCounts = new Map<string, number>();
+          for (const apt of appointments) {
+            if (apt.status !== 'CANCELLED_BY_DOCTOR' && apt.status !== 'REJECTED') {
+              const dateOnly = apt.startDateTime.toISOString().split('T')[0];
+              appointmentCounts.set(dateOnly, (appointmentCounts.get(dateOnly) || 0) + 1);
+            }
+          }
+          
+          const maxSlotsPerDay = 8;
+          for (const [date, count] of appointmentCounts) {
+            if (count >= maxSlotsPerDay) {
+              availabilityMap.set(date, false);
+            }
+          }
+          
+          const calendarKeyboard = generateCalendarKeyboard({
+            year: now.getFullYear(),
+            month: now.getMonth(),
+            lang: lang,
+            availabilityMap
+          });
+          
+          const selectDateText = lang === 'ARM' 
+            ? '\u0538\u0576\u057f\u0580\u0565\u0584 \u0561\u0574\u057d\u0561\u0569\u056b\u057e\u0568:'
+            : 'Выберите дату:';
+          
+          await sendTelegramMessage(doctor.telegramBotToken, chatId, selectDateText, calendarKeyboard);
+        }
+        
+        if (data?.startsWith('calendar_nav_')) {
+          const match = data.match(/calendar_nav_(\d+)_(\d+)/);
+          if (match) {
+            const navYear = parseInt(match[1]);
+            const navMonth = parseInt(match[2]);
+            
+            const blockedDays = await storage.getBlockedDays(doctor.id);
+            const appointments = await storage.getAppointments(doctor.id);
+            
+            const availabilityMap = new Map<string, boolean>();
+            
+            for (const blocked of blockedDays) {
+              availabilityMap.set(blocked.blockedDate, false);
+            }
+            
+            const appointmentCounts = new Map<string, number>();
+            for (const apt of appointments) {
+              if (apt.status !== 'CANCELLED_BY_DOCTOR' && apt.status !== 'REJECTED') {
+                const dateOnly = apt.startDateTime.toISOString().split('T')[0];
+                appointmentCounts.set(dateOnly, (appointmentCounts.get(dateOnly) || 0) + 1);
+              }
+            }
+            
+            const maxSlotsPerDay = 8;
+            for (const [date, count] of appointmentCounts) {
+              if (count >= maxSlotsPerDay) {
+                availabilityMap.set(date, false);
+              }
+            }
+            
+            const calendarKeyboard = generateCalendarKeyboard({
+              year: navYear,
+              month: navMonth,
+              lang: 'RU',
+              availabilityMap
+            });
+            
+            await sendTelegramMessage(doctor.telegramBotToken, chatId, 'Выберите дату:', calendarKeyboard);
+          }
+        }
+        
+        if (data?.startsWith('select_date_')) {
+          const selectedDate = data.replace('select_date_', '');
+          const confirmText = `Вы выбрали: ${selectedDate}\n\nПолный функционал записи скоро будет доступен.`;
+          await sendTelegramMessage(doctor.telegramBotToken, chatId, confirmText);
         }
         
       } else if (update.edited_message) {
