@@ -88,8 +88,9 @@ export function SettingsView() {
     enabled: !!doctor?.id,
   });
 
+  const doctorId = doctor?.id;
   useEffect(() => {
-    if (doctor) {
+    if (doctor && doctorId) {
       setDoctorForm({
         id: doctor.id,
         firstName: doctor.firstName,
@@ -112,11 +113,12 @@ export function SettingsView() {
       setTokenChanged(false);
       setBaseUrlChanged(false);
     }
-  }, [doctor]);
+  }, [doctorId]);
 
+  const servicesJSON = JSON.stringify(existingServices.map(s => s.id));
   useEffect(() => {
     setServices(existingServices);
-  }, [existingServices]);
+  }, [servicesJSON]);
 
   const updateDoctor = useMutation({
     mutationFn: async (data: Partial<Doctor>) => {

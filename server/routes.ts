@@ -1,8 +1,44 @@
 import type { Express, Request, Response } from "express";
 import { storage } from "./storage";
 import bcrypt from "bcryptjs";
+import { z } from "zod";
 import { createCalendarEvent, deleteCalendarEvent, appendToSheet } from "./services/google";
-import { sendTelegramMessage, setWebhook } from "./services/telegram";
+import { sendTelegramMessage, setWebhook, answerCallbackQuery } from "./services/telegram";
+
+const doctorUpdateSchema = z.object({
+  firstName: z.string().min(1).optional(),
+  lastName: z.string().min(1).optional(),
+  interfaceLanguage: z.enum(['ARM', 'RU']).optional(),
+  workDays: z.array(z.string()).optional(),
+  workDayStartTime: z.string().optional(),
+  workDayEndTime: z.string().optional(),
+  slotStepMinutes: z.number().min(5).max(120).optional(),
+  telegramBotToken: z.string().min(10).optional().or(z.literal('')).transform(v => v === '' ? undefined : v),
+  telegramChatId: z.string().optional().or(z.literal('')).transform(v => v === '' ? undefined : v),
+  googleCalendarId: z.string().optional().or(z.literal('')).transform(v => v === '' ? undefined : v),
+  googleSheetId: z.string().optional().or(z.literal('')).transform(v => v === '' ? undefined : v),
+  aiEnabled: z.boolean().optional(),
+  llmApiBaseUrl: z.string().optional().or(z.literal('')).transform(v => v === '' ? undefined : v),
+  llmApiKey: z.string().min(5).optional().or(z.literal('')).transform(v => v === '' ? undefined : v),
+  llmModelName: z.string().optional().or(z.literal('')).transform(v => v === '' ? undefined : v),
+}).transform(data => {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (value !== undefined) {
+      result[key] = value;
+    }
+  }
+  return result;
+});
+
+const syncCalendarSchema = z.object({
+  appointmentId: z.string().min(1, "appointmentId required"),
+  action: z.enum(['create', 'delete'], { errorMap: () => ({ message: "action must be 'create' or 'delete'" }) }),
+});
+
+const syncSheetsSchema = z.object({
+  appointmentId: z.string().min(1, "appointmentId required"),
+});
 
 export async function registerRoutes(app: Express): Promise<void> {
   app.post("/api/auth/register", async (req: Request, res: Response) => {
@@ -115,8 +151,21 @@ export async function registerRoutes(app: Express): Promise<void> {
       return res.status(403).json({ error: "Not authorized" });
     }
 
-    const updated = await storage.updateDoctor(id, req.body);
-    res.json(updated);
+    try {
+      const validatedData = doctorUpdateSchema.parse(req.body);
+      
+      if (Object.keys(validatedData).length === 0) {
+        return res.json(doctor);
+      }
+
+      const updated = await storage.updateDoctor(id, validatedData);
+      res.json(updated);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Validation failed", details: error.errors });
+      }
+      throw error;
+    }
   });
 
   app.get("/api/services", async (req: Request, res: Response) => {
@@ -329,19 +378,23 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
 
     try {
-      const { appointmentId, action } = req.body;
-      
-      if (!appointmentId || !action) {
-        return res.status(400).json({ error: "appointmentId and action required" });
+      const parsed = syncCalendarSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid request", details: parsed.error.errors });
       }
+      const { appointmentId, action } = parsed.data;
 
       const doctor = await storage.getDoctorByUserId(req.session.userId);
       if (!doctor) {
         return res.status(404).json({ error: "Doctor not found" });
       }
 
+      if (!process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
+        return res.status(400).json({ error: "Google service account not configured" });
+      }
+
       if (!doctor.googleCalendarId) {
-        return res.status(400).json({ error: "Google Calendar not configured" });
+        return res.status(400).json({ error: "Google Calendar ID not configured in settings" });
       }
 
       const appointment = await storage.getAppointment(appointmentId);
@@ -361,11 +414,11 @@ export async function registerRoutes(app: Express): Promise<void> {
 
         const serviceName = service 
           ? (doctor.interfaceLanguage === 'ARM' ? service.nameArm : service.nameRu)
-          : appointment.customReason || 'Прием';
+          : appointment.customReason || '\u041f\u0440\u0438\u0435\u043c';
 
         const event = {
           summary: `${patient?.firstName} ${patient?.lastName || ''} - ${serviceName}`,
-          description: `Пациент: ${patient?.firstName} ${patient?.lastName || ''}\nТелефон: ${patient?.phoneNumber || 'Не указан'}\nУслуга: ${serviceName}\nИсточник: ${appointment.source || 'Web'}`,
+          description: `\u041f\u0430\u0446\u0438\u0435\u043d\u0442: ${patient?.firstName} ${patient?.lastName || ''}\n\u0422\u0435\u043b\u0435\u0444\u043e\u043d: ${patient?.phoneNumber || '\u041d\u0435 \u0443\u043a\u0430\u0437\u0430\u043d'}\n\u0423\u0441\u043b\u0443\u0433\u0430: ${serviceName}\n\u0418\u0441\u0442\u043e\u0447\u043d\u0438\u043a: ${appointment.source || 'Web'}`,
           start: {
             dateTime: startTime.toISOString(),
             timeZone: 'Asia/Yerevan',
@@ -397,9 +450,16 @@ export async function registerRoutes(app: Express): Promise<void> {
       } else {
         res.json({ success: true });
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Calendar sync error:", error);
-      res.status(500).json({ error: "Calendar sync failed" });
+      const message = error instanceof Error ? error.message : 'Calendar sync failed';
+      if (message.includes('access token') || message.includes('JWT')) {
+        return res.status(400).json({ error: "Google authentication failed - check service account configuration" });
+      }
+      if (message.includes('calendar') || message.includes('Calendar')) {
+        return res.status(400).json({ error: "Invalid calendar ID or insufficient permissions" });
+      }
+      res.status(500).json({ error: message });
     }
   });
 
@@ -410,19 +470,23 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
 
     try {
-      const { appointmentId } = req.body;
-      
-      if (!appointmentId) {
-        return res.status(400).json({ error: "appointmentId required" });
+      const parsed = syncSheetsSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid request", details: parsed.error.errors });
       }
+      const { appointmentId } = parsed.data;
 
       const doctor = await storage.getDoctorByUserId(req.session.userId);
       if (!doctor) {
         return res.status(404).json({ error: "Doctor not found" });
       }
 
+      if (!process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
+        return res.status(400).json({ error: "Google service account not configured" });
+      }
+
       if (!doctor.googleSheetId) {
-        return res.status(400).json({ error: "Google Sheets not configured" });
+        return res.status(400).json({ error: "Google Sheet ID not configured in settings" });
       }
 
       const appointment = await storage.getAppointment(appointmentId);
@@ -439,7 +503,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       const startTime = new Date(appointment.startDateTime);
       const serviceName = service 
         ? (doctor.interfaceLanguage === 'ARM' ? service.nameArm : service.nameRu)
-        : appointment.customReason || 'Прием';
+        : appointment.customReason || '\u041f\u0440\u0438\u0435\u043c';
 
       const rowData = [
         appointment.id,
@@ -448,7 +512,7 @@ export async function registerRoutes(app: Express): Promise<void> {
         `${patient?.firstName || ''} ${patient?.lastName || ''}`.trim(),
         patient?.phoneNumber || '',
         serviceName,
-        `${appointment.durationMinutes} мин`,
+        `${appointment.durationMinutes} \u043c\u0438\u043d`,
         appointment.status || 'PENDING',
         appointment.source || 'Telegram',
         new Date().toISOString(),
@@ -456,9 +520,16 @@ export async function registerRoutes(app: Express): Promise<void> {
 
       await appendToSheet(doctor.googleSheetId, rowData);
       res.json({ success: true });
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Sheets sync error:", error);
-      res.status(500).json({ error: "Sheets sync failed" });
+      const message = error instanceof Error ? error.message : 'Sheets sync failed';
+      if (message.includes('access token') || message.includes('JWT')) {
+        return res.status(400).json({ error: "Google authentication failed - check service account configuration" });
+      }
+      if (message.includes('spreadsheet') || message.includes('Spreadsheet')) {
+        return res.status(400).json({ error: "Invalid sheet ID or insufficient permissions" });
+      }
+      res.status(500).json({ error: message });
     }
   });
 
@@ -520,9 +591,19 @@ export async function registerRoutes(app: Express): Promise<void> {
   // Telegram webhook endpoint (public - called by Telegram)
   app.post("/api/telegram-webhook", async (req: Request, res: Response) => {
     try {
-      console.log("[Webhook] Received update:", JSON.stringify(req.body).substring(0, 200));
+      const update = req.body;
+      
+      if (!update || typeof update !== 'object') {
+        console.log("[Webhook] Invalid update received");
+        return res.json({ ok: true });
+      }
 
-      // Get the first doctor (single-tenant for now)
+      console.log("[Webhook] Received update type:", 
+        update.message ? 'message' : 
+        update.callback_query ? 'callback_query' : 
+        update.edited_message ? 'edited_message' : 'unknown'
+      );
+
       const doctors = await storage.getAllDoctors();
       const doctor = doctors[0];
       
@@ -531,28 +612,66 @@ export async function registerRoutes(app: Express): Promise<void> {
         return res.json({ ok: true });
       }
 
-      // For now, just acknowledge - full bot logic to be ported later
-      // This ensures the webhook is working
-      const update = req.body;
-      
-      if (update.message?.text === '/start') {
-        const chatId = update.message.chat.id;
-        await sendTelegramMessage(
-          doctor.telegramBotToken,
-          chatId,
-          '👋 <b>Добро пожаловать!</b>\n\nЭто бот для записи на прием.\nПолный функционал скоро будет доступен.',
-          {
-            inline_keyboard: [
-              [{ text: '🇦🇲 Հայdelays', callback_data: 'lang_arm' }, { text: '🇷🇺 Русский', callback_data: 'lang_ru' }]
-            ]
-          }
-        );
+      if (update.message) {
+        const message = update.message;
+        const chatId = message.chat?.id;
+        const text = message.text;
+        
+        if (!chatId) {
+          console.log("[Webhook] No chat ID in message");
+          return res.json({ ok: true });
+        }
+
+        if (text === '/start') {
+          await sendTelegramMessage(
+            doctor.telegramBotToken,
+            chatId,
+            '\u0414\u043e\u0431\u0440\u043e \u043f\u043e\u0436\u0430\u043b\u043e\u0432\u0430\u0442\u044c!\n\n\u042d\u0442\u043e \u0431\u043e\u0442 \u0434\u043b\u044f \u0437\u0430\u043f\u0438\u0441\u0438 \u043d\u0430 \u043f\u0440\u0438\u0435\u043c.\n\u041f\u043e\u043b\u043d\u044b\u0439 \u0444\u0443\u043d\u043a\u0446\u0438\u043e\u043d\u0430\u043b \u0441\u043a\u043e\u0440\u043e \u0431\u0443\u0434\u0435\u0442 \u0434\u043e\u0441\u0442\u0443\u043f\u0435\u043d.',
+            {
+              inline_keyboard: [
+                [{ text: '\u0540\u0561\u0575\u0565\u0580\u0565\u0576', callback_data: 'lang_arm' }, { text: '\u0420\u0443\u0441\u0441\u043a\u0438\u0439', callback_data: 'lang_ru' }]
+              ]
+            }
+          );
+        }
+      } else if (update.callback_query) {
+        const callback = update.callback_query;
+        const chatId = callback.message?.chat?.id;
+        const callbackId = callback.id;
+        const data = callback.data;
+        
+        if (!chatId || !callbackId) {
+          console.log("[Webhook] Invalid callback query");
+          return res.json({ ok: true });
+        }
+
+        console.log("[Webhook] Callback data:", data);
+        
+        try {
+          await answerCallbackQuery(doctor.telegramBotToken, callbackId);
+        } catch (e) {
+          console.log("[Webhook] Failed to answer callback query:", e);
+        }
+        
+        if (data === 'lang_arm' || data === 'lang_ru') {
+          const lang = data === 'lang_arm' ? 'ARM' : 'RU';
+          const welcomeText = lang === 'ARM' 
+            ? '\u053c\u0565\u0566\u0578\u0582 \u0568\u0576\u057f\u0580\u057e\u0565\u0581!\n\n\u0540\u0580\u0561\u0574\u0561\u0576\u0576\u0565\u0580\u056b \u0570\u0576\u0561\u0580\u0561\u057e\u0578\u0580\u0578\u0582\u0569\u0575\u0578\u0582\u0576\u0568 \u0577\u0578\u0582\u057f\u0578\u057e \\u056f\u0570\u0561\u057d\u0561\u0576\u0565\u056c\u056b \u056c\u056b\u0576\u0565\u056c\u0578\u0582.'
+            : '\u042f\u0437\u044b\u043a \u0432\u044b\u0431\u0440\u0430\u043d!\n\n\u0412\u043e\u0437\u043c\u043e\u0436\u043d\u043e\u0441\u0442\u044c \u0437\u0430\u043f\u0438\u0441\u0438 \u043d\u0430 \u043f\u0440\u0438\u0435\u043c \u0441\u043a\u043e\u0440\u043e \u0431\u0443\u0434\u0435\u0442 \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u0430.';
+          
+          await sendTelegramMessage(doctor.telegramBotToken, chatId, welcomeText);
+        }
+        
+      } else if (update.edited_message) {
+        console.log("[Webhook] Edited message received - ignoring");
+      } else {
+        console.log("[Webhook] Unsupported update type received");
       }
 
       res.json({ ok: true });
     } catch (error) {
       console.error("[Webhook] Error:", error);
-      res.json({ ok: true }); // Always return 200 to Telegram
+      res.json({ ok: true });
     }
   });
 
