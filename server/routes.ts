@@ -13,6 +13,11 @@ import {
   generateServiceKeyboard,
   generateAvailableTimeSlots
 } from "./services/telegram";
+import { 
+  bulkBlockDaysSchema, 
+  bulkCancelAppointmentsSchema, 
+  createPatientApiSchema 
+} from "../shared/schema";
 
 const doctorUpdateSchema = z.object({
   firstName: z.string().min(1).optional(),
@@ -272,6 +277,68 @@ export async function registerRoutes(app: Express): Promise<void> {
     res.json(patient);
   });
 
+  app.post("/api/patients", async (req: Request, res: Response) => {
+    if (!req.session.userId) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+    
+    const doctor = await storage.getDoctorByUserId(req.session.userId);
+    if (!doctor) {
+      return res.status(404).json({ error: "Doctor profile not found" });
+    }
+
+    try {
+      const parsed = createPatientApiSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid request", details: parsed.error.errors });
+      }
+      
+      const patientData = {
+        firstName: parsed.data.firstName,
+        lastName: parsed.data.lastName || null,
+        phoneNumber: parsed.data.phoneNumber || null,
+        telegramUserId: String(parsed.data.telegramUserId),
+        language: parsed.data.language || 'ARM',
+      };
+      
+      const patient = await storage.createPatient(patientData);
+      res.json(patient);
+    } catch (error) {
+      console.error('Error creating patient:', error);
+      res.status(500).json({ error: "Failed to create patient" });
+    }
+  });
+
+  app.get("/api/patients/:id/appointments", async (req: Request, res: Response) => {
+    if (!req.session.userId) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+    
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const doctor = await storage.getDoctorByUserId(req.session.userId);
+    if (!doctor) {
+      return res.status(404).json({ error: "Doctor profile not found" });
+    }
+
+    const allAppointments = await storage.getAppointments(doctor.id);
+    const patientAppointments = allAppointments.filter(apt => apt.patientId === id);
+    
+    const enrichedAppointments = await Promise.all(
+      patientAppointments.map(async (apt) => {
+        let services = null;
+        if (apt.serviceId) {
+          const service = await storage.getService(apt.serviceId);
+          if (service) {
+            services = { name_arm: service.nameArm, name_ru: service.nameRu };
+          }
+        }
+        return { ...apt, services };
+      })
+    );
+    
+    res.json(enrichedAppointments);
+  });
+
   app.get("/api/appointments", async (req: Request, res: Response) => {
     if (!req.session.userId) {
       return res.status(401).json({ error: "Not authenticated" });
@@ -376,6 +443,143 @@ export async function registerRoutes(app: Express): Promise<void> {
     const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     await storage.deleteBlockedDay(id);
     res.json({ success: true });
+  });
+
+  app.post("/api/blocked-days/bulk", async (req: Request, res: Response) => {
+    if (!req.session.userId) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+    
+    const doctor = await storage.getDoctorByUserId(req.session.userId);
+    if (!doctor) {
+      return res.status(404).json({ error: "Doctor profile not found" });
+    }
+
+    try {
+      const parsed = bulkBlockDaysSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid request", details: parsed.error.errors });
+      }
+
+      const { dates, reason } = parsed.data;
+      const results = [];
+      for (const blockedDate of dates) {
+        try {
+          const day = await storage.createBlockedDay({ 
+            doctorId: doctor.id, 
+            blockedDate, 
+            reason: reason || null 
+          });
+          results.push(day);
+        } catch (e) {
+          // Ignore duplicates
+        }
+      }
+      res.json(results);
+    } catch (error) {
+      console.error('Error blocking days:', error);
+      res.status(500).json({ error: "Failed to block days" });
+    }
+  });
+
+  app.delete("/api/blocked-days/bulk", async (req: Request, res: Response) => {
+    if (!req.session.userId) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+    
+    const doctor = await storage.getDoctorByUserId(req.session.userId);
+    if (!doctor) {
+      return res.status(404).json({ error: "Doctor profile not found" });
+    }
+
+    try {
+      const parsed = bulkBlockDaysSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid request", details: parsed.error.errors });
+      }
+
+      const { dates } = parsed.data;
+      const blockedDays = await storage.getBlockedDays(doctor.id);
+      const daysToDelete = blockedDays.filter(d => dates.includes(d.blockedDate));
+      
+      for (const day of daysToDelete) {
+        await storage.deleteBlockedDay(day.id);
+      }
+      res.json({ deleted: daysToDelete.length });
+    } catch (error) {
+      console.error('Error unblocking days:', error);
+      res.status(500).json({ error: "Failed to unblock days" });
+    }
+  });
+
+  app.post("/api/appointments/bulk-cancel", async (req: Request, res: Response) => {
+    if (!req.session.userId) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+    
+    const doctor = await storage.getDoctorByUserId(req.session.userId);
+    if (!doctor) {
+      return res.status(404).json({ error: "Doctor profile not found" });
+    }
+
+    try {
+      const parsed = bulkCancelAppointmentsSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid request", details: parsed.error.errors });
+      }
+
+      const { appointmentIds, reason } = parsed.data;
+      const results = [];
+      for (const aptId of appointmentIds) {
+        const apt = await storage.getAppointment(aptId);
+        if (apt && apt.doctorId === doctor.id) {
+          const updated = await storage.updateAppointment(aptId, {
+            status: 'CANCELLED_BY_DOCTOR',
+            rejectionReason: reason || null
+          });
+          results.push(updated);
+        }
+      }
+      res.json(results);
+    } catch (error) {
+      console.error('Error bulk cancelling appointments:', error);
+      res.status(500).json({ error: "Failed to cancel appointments" });
+    }
+  });
+
+  app.get("/api/appointments/with-details", async (req: Request, res: Response) => {
+    if (!req.session.userId) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+    
+    const doctor = await storage.getDoctorByUserId(req.session.userId);
+    if (!doctor) {
+      return res.status(404).json({ error: "Doctor profile not found" });
+    }
+
+    const appointments = await storage.getAppointments(doctor.id);
+    const enriched = await Promise.all(
+      appointments.map(async (apt) => {
+        const patient = await storage.getPatient(apt.patientId);
+        let service = null;
+        if (apt.serviceId) {
+          service = await storage.getService(apt.serviceId);
+        }
+        return {
+          ...apt,
+          patients: patient ? {
+            first_name: patient.firstName,
+            last_name: patient.lastName,
+            telegram_user_id: patient.telegramUserId
+          } : null,
+          services: service ? {
+            name_arm: service.nameArm,
+            name_ru: service.nameRu
+          } : null
+        };
+      })
+    );
+    res.json(enriched);
   });
 
   // ============ INTEGRATION ROUTES ============

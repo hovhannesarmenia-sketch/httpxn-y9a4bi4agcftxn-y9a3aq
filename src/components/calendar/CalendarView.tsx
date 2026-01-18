@@ -215,13 +215,13 @@ export function CalendarView() {
           <CardContent>
             <p className="text-xs text-muted-foreground mb-3">
               {language === 'ARM' 
-                ? 'Ctrl + սdelays կdelays այdelays օdelays' 
+                ? 'Ctrl + սեղմեք մի քանի օրեր ընտրելու համար' 
                 : 'Ctrl + клик для выбора нескольких дней для блокировки'}
             </p>
 
             <div className="grid grid-cols-7 mb-2">
               {(language === 'ARM' 
-                ? ['Երdelays', 'Delays', 'Delays', 'Delays', 'Delays', 'Delays', 'Delays']
+                ? ['Երկ', 'Երք', 'Չոր', 'Հնգ', 'Ուրբ', 'Շբթ', 'Կիր']
                 : ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
               ).map((day, i) => (
                 <div
@@ -305,7 +305,7 @@ export function CalendarView() {
                   <div className="flex items-center gap-1 text-sm text-destructive mt-1">
                     <CalendarOff className="h-4 w-4" />
                     <span>
-                      {language === 'ARM' ? 'Օdelays աdelays' : 'День заблокирован'}
+                      {language === 'ARM' ? 'Օրը արգելափակված է' : 'День заблокирован'}
                       {selectedDateBlockedInfo.reason && `: ${selectedDateBlockedInfo.reason}`}
                     </span>
                   </div>
@@ -323,7 +323,7 @@ export function CalendarView() {
                 data-testid="button-new-appointment"
               >
                 <Plus className="h-4 w-4" />
-                <span className="hidden sm:inline">{language === 'ARM' ? 'Նdelays' : 'Новая'}</span>
+                <span className="hidden sm:inline">{language === 'ARM' ? 'Նոր' : 'Новая'}</span>
               </Button>
             </div>
           </CardHeader>
@@ -333,7 +333,7 @@ export function CalendarView() {
                 <CalendarOff className="h-12 w-12 text-destructive/50 mx-auto mb-2" />
                 <p className="text-muted-foreground">
                   {language === 'ARM' 
-                    ? 'Aйdelays оdelays гdelays delays' 
+                    ? 'Այս օրը գրանցում հնարավոր չէ' 
                     : 'В этот день запись недоступна'}
                 </p>
               </div>

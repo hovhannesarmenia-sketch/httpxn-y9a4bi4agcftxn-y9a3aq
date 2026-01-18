@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { LanguageProvider, useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/hooks/useAuth';
+import { t } from '@/lib/i18n';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,10 +12,23 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ArrowLeft, User, Phone, Globe, Calendar, Clock, MessageSquare, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru, hy } from 'date-fns/locale';
-import type { Database } from '@/integrations/supabase/types';
 
-type Patient = Database['public']['Tables']['patients']['Row'];
-type Appointment = Database['public']['Tables']['appointments']['Row'] & {
+type Patient = {
+  id: string;
+  firstName: string;
+  lastName: string | null;
+  phoneNumber: string | null;
+  telegramUserId: string;
+  language: string | null;
+  createdAt: string | null;
+};
+
+type Appointment = {
+  id: string;
+  startDateTime: string;
+  durationMinutes: number;
+  status: string | null;
+  customReason: string | null;
   services: { name_arm: string; name_ru: string } | null;
 };
 
@@ -25,37 +38,24 @@ function PatientProfileContent() {
   const { language } = useLanguage();
   const locale = language === 'ARM' ? hy : ru;
 
-  const { data: patient, isLoading: patientLoading } = useQuery({
-    queryKey: ['patient', id],
+  const { data: patient, isLoading: patientLoading } = useQuery<Patient | null>({
+    queryKey: ['/api/patients', id],
     queryFn: async () => {
       if (!id) return null;
-      const { data, error } = await supabase
-        .from('patients')
-        .select('*')
-        .eq('id', id)
-        .maybeSingle();
-      
-      if (error) throw error;
-      return data as Patient | null;
+      const res = await fetch(`/api/patients/${id}`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to fetch patient');
+      return res.json();
     },
     enabled: !!id,
   });
 
-  const { data: appointments = [], isLoading: appointmentsLoading } = useQuery({
-    queryKey: ['patient-appointments', id],
+  const { data: appointments = [], isLoading: appointmentsLoading } = useQuery<Appointment[]>({
+    queryKey: ['/api/patients', id, 'appointments'],
     queryFn: async () => {
       if (!id) return [];
-      const { data, error } = await supabase
-        .from('appointments')
-        .select(`
-          *,
-          services (name_arm, name_ru)
-        `)
-        .eq('patient_id', id)
-        .order('start_date_time', { ascending: false });
-      
-      if (error) throw error;
-      return data as Appointment[];
+      const res = await fetch(`/api/patients/${id}/appointments`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to fetch appointments');
+      return res.json();
     },
     enabled: !!id,
   });
@@ -100,7 +100,7 @@ function PatientProfileContent() {
             </h2>
             <Button onClick={() => navigate('/')} variant="outline" className="mt-4">
               <ArrowLeft className="h-4 w-4 mr-2" />
-              {language === 'ARM' ? '\u054E\u0565\u0580\u0561\u0564\u0561\u057C\u0576\u0561\u056C' : '\u041D\u0430\u0437\u0430\u0434'}
+              {t(language, 'common.back')}
             </Button>
           </CardContent>
         </Card>
@@ -111,14 +111,13 @@ function PatientProfileContent() {
   return (
     <div className="min-h-screen bg-background p-4 lg:p-8" style={{ background: 'var(--gradient-page)' }}>
       <div className="max-w-4xl mx-auto space-y-6">
-        {/* Header */}
         <div className="flex items-center gap-4">
-          <Button onClick={() => navigate('/')} variant="outline" size="icon">
+          <Button onClick={() => navigate('/')} variant="outline" size="icon" data-testid="button-back">
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
             <h1 className="text-2xl font-bold text-foreground">
-              {patient.first_name} {patient.last_name || ''}
+              {patient.firstName} {patient.lastName || ''}
             </h1>
             <p className="text-muted-foreground">
               {language === 'ARM' ? '\u0540\u056B\u057E\u0561\u0576\u0564\u056B \u057A\u0580\u0578\u0586\u056B\u056C' : '\u041F\u0440\u043E\u0444\u0438\u043B\u044C \u043F\u0430\u0446\u0438\u0435\u043D\u0442\u0430'}
@@ -126,7 +125,6 @@ function PatientProfileContent() {
           </div>
         </div>
 
-        {/* Patient Info Card */}
         <Card className="medical-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -141,8 +139,8 @@ function PatientProfileContent() {
                   <User className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">{language === 'ARM' ? '\u0531\u0576\u0578\u0582\u0576 \u0531\u0566\u0563\u0561\u0576\u0578\u0582\u0576' : '\u041F\u043E\u043B\u043D\u043E\u0435 \u0438\u043C\u044F'}</p>
-                  <p className="font-medium">{patient.first_name} {patient.last_name || ''}</p>
+                  <p className="text-xs text-muted-foreground">{t(language, 'patients.name')}</p>
+                  <p className="font-medium">{patient.firstName} {patient.lastName || ''}</p>
                 </div>
               </div>
 
@@ -151,8 +149,8 @@ function PatientProfileContent() {
                   <Phone className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">{language === 'ARM' ? '\u0540\u0565\u057C\u0561\u056D\u0578\u057D' : '\u0422\u0435\u043B\u0435\u0444\u043E\u043D'}</p>
-                  <p className="font-medium">{patient.phone_number || '-'}</p>
+                  <p className="text-xs text-muted-foreground">{t(language, 'patients.phone')}</p>
+                  <p className="font-medium">{patient.phoneNumber || '-'}</p>
                 </div>
               </div>
 
@@ -161,7 +159,7 @@ function PatientProfileContent() {
                   <Globe className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">{language === 'ARM' ? '\u053C\u0565\u0566\u0578\u0582' : '\u042F\u0437\u044B\u043A'}</p>
+                  <p className="text-xs text-muted-foreground">{t(language, 'patients.language')}</p>
                   <p className="font-medium">{getLanguageLabel(patient.language)}</p>
                 </div>
               </div>
@@ -173,7 +171,7 @@ function PatientProfileContent() {
                 <div>
                   <p className="text-xs text-muted-foreground">Telegram ID</p>
                   <p className="font-medium font-mono text-sm">
-                    {patient.telegram_user_id > 0 ? patient.telegram_user_id : (language === 'ARM' ? '\u0541\u0565\u057C\u0584\u0578\u057E \u0563\u0580\u0561\u0576\u0581\u0578\u0582\u0574' : '\u0420\u0443\u0447\u043D\u0430\u044F \u0437\u0430\u043F\u0438\u0441\u044C')}
+                    {!patient.telegramUserId.startsWith('-') ? patient.telegramUserId : (language === 'ARM' ? '\u054B\u0565\u057C\u0584\u0578\u057E \u0563\u0580\u0561\u0576\u0581\u0578\u0582\u0574' : '\u0420\u0443\u0447\u043D\u0430\u044F \u0437\u0430\u043F\u0438\u0441\u044C')}
                   </p>
                 </div>
               </div>
@@ -185,7 +183,7 @@ function PatientProfileContent() {
                 <div>
                   <p className="text-xs text-muted-foreground">{language === 'ARM' ? '\u0533\u0580\u0561\u0576\u0581\u0574\u0561\u0576 \u0561\u0574\u057D\u0561\u0569\u056B\u057E' : '\u0414\u0430\u0442\u0430 \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u0438'}</p>
                   <p className="font-medium">
-                    {patient.created_at ? format(new Date(patient.created_at), 'd MMM yyyy', { locale }) : '-'}
+                    {patient.createdAt ? format(new Date(patient.createdAt), 'd MMM yyyy', { locale }) : '-'}
                   </p>
                 </div>
               </div>
@@ -193,35 +191,33 @@ function PatientProfileContent() {
           </CardContent>
         </Card>
 
-        {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card className="medical-card">
             <CardContent className="pt-6 text-center">
               <p className="text-3xl font-bold text-foreground">{stats.total}</p>
-              <p className="text-sm text-muted-foreground">{language === 'ARM' ? '\u0538\u0576\u0564\u0561\u0574\u0565\u0576\u0568 \u0563\u0580\u0561\u0576\u0581\u0578\u0582\u0574\u0576\u0565\u0580' : '\u0412\u0441\u0435\u0433\u043E \u0437\u0430\u043F\u0438\u0441\u0435\u0439'}</p>
+              <p className="text-sm text-muted-foreground">{t(language, 'patients.total')}</p>
             </CardContent>
           </Card>
           <Card className="medical-card">
             <CardContent className="pt-6 text-center">
               <p className="text-3xl font-bold text-success">{stats.confirmed}</p>
-              <p className="text-sm text-muted-foreground">{language === 'ARM' ? '\u0540\u0561\u057D\u057F\u0561\u057F\u057E\u0561\u056E' : '\u041F\u043E\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0435\u043D\u043E'}</p>
+              <p className="text-sm text-muted-foreground">{t(language, 'appointment.confirmed')}</p>
             </CardContent>
           </Card>
           <Card className="medical-card">
             <CardContent className="pt-6 text-center">
               <p className="text-3xl font-bold text-pending">{stats.pending}</p>
-              <p className="text-sm text-muted-foreground">{language === 'ARM' ? '\u054D\u057A\u0561\u057D\u0574\u0561\u0576 \u0574\u0565\u057B' : '\u041E\u0436\u0438\u0434\u0430\u0435\u0442'}</p>
+              <p className="text-sm text-muted-foreground">{t(language, 'appointment.pending')}</p>
             </CardContent>
           </Card>
           <Card className="medical-card">
             <CardContent className="pt-6 text-center">
               <p className="text-3xl font-bold text-destructive">{stats.cancelled}</p>
-              <p className="text-sm text-muted-foreground">{language === 'ARM' ? '\u0549\u0565\u0572\u0561\u0580\u056F\u057E\u0561\u056E' : '\u041E\u0442\u043C\u0435\u043D\u0435\u043D\u043E'}</p>
+              <p className="text-sm text-muted-foreground">{t(language, 'appointment.cancelled')}</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Appointment History */}
         <Card className="medical-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -239,16 +235,16 @@ function PatientProfileContent() {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50">
-                      <TableHead>{language === 'ARM' ? '\u0531\u0574\u057D\u0561\u0569\u056B\u057E' : '\u0414\u0430\u0442\u0430'}</TableHead>
-                      <TableHead>{language === 'ARM' ? '\u054A\u0561\u0574' : '\u0412\u0440\u0435\u043C\u044F'}</TableHead>
-                      <TableHead className="hidden md:table-cell">{language === 'ARM' ? '\u053E\u0561\u057C\u0561\u0575\u0578\u0582\u0569\u0575\u0578\u0582\u0576' : '\u0423\u0441\u043B\u0443\u0433\u0430'}</TableHead>
-                      <TableHead>{language === 'ARM' ? '\u054F\u0587\u0578\u0572\u0578\u0582\u0569\u0575\u0578\u0582\u0576' : '\u0414\u043B\u0438\u0442.'}</TableHead>
-                      <TableHead>{language === 'ARM' ? '\u053F\u0561\u0580\u0563\u0561\u057E\u056B\u0573\u0561\u056F' : '\u0421\u0442\u0430\u0442\u0443\u0441'}</TableHead>
+                      <TableHead>{t(language, 'appointment.date')}</TableHead>
+                      <TableHead>{t(language, 'appointment.time')}</TableHead>
+                      <TableHead className="hidden md:table-cell">{t(language, 'appointment.service')}</TableHead>
+                      <TableHead>{t(language, 'appointment.duration')}</TableHead>
+                      <TableHead>{t(language, 'common.filter')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {appointments.map((apt) => {
-                      const startDate = new Date(apt.start_date_time);
+                      const startDate = new Date(apt.startDateTime);
                       const isPast = startDate < new Date();
                       
                       return (
@@ -266,11 +262,11 @@ function PatientProfileContent() {
                             </div>
                           </TableCell>
                           <TableCell className="hidden md:table-cell">
-                            {apt.custom_reason || getServiceName(apt.services)}
+                            {apt.customReason || getServiceName(apt.services)}
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline">
-                              {apt.duration_minutes} {language === 'ARM' ? '\u0580\u0578\u057A\u0565' : '\u043C\u0438\u043D'}
+                              {apt.durationMinutes} {t(language, 'appointment.minutes')}
                             </Badge>
                           </TableCell>
                           <TableCell>

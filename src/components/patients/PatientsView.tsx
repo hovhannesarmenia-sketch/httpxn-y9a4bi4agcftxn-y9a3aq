@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { t, formatDate, formatTime } from '@/lib/i18n';
 import { Input } from '@/components/ui/input';
@@ -10,12 +9,30 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Search, Users, Phone, Globe, Calendar as CalendarIcon, ExternalLink } from 'lucide-react';
-import type { Database } from '@/integrations/supabase/types';
+import { Search, Users, Phone, Calendar as CalendarIcon, ExternalLink } from 'lucide-react';
 
-type Patient = Database['public']['Tables']['patients']['Row'];
-type Appointment = Database['public']['Tables']['appointments']['Row'] & {
-  patients: Patient | null;
+type Patient = {
+  id: string;
+  firstName: string;
+  lastName: string | null;
+  phoneNumber: string | null;
+  telegramUserId: number;
+  language: string | null;
+  createdAt: string | null;
+};
+
+type AppointmentWithDetails = {
+  id: string;
+  patientId: string;
+  startDateTime: string;
+  durationMinutes: number;
+  status: string | null;
+  customReason: string | null;
+  patients: {
+    first_name: string;
+    last_name: string | null;
+    telegram_user_id: number | null;
+  } | null;
   services: { name_arm: string; name_ru: string } | null;
 };
 
@@ -26,34 +43,12 @@ export function PatientsView() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState<string>('');
 
-  const { data: appointments = [], isLoading } = useQuery({
-    queryKey: ['appointments-with-patients'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('appointments')
-        .select(`
-          *,
-          patients (*),
-          services (name_arm, name_ru)
-        `)
-        .order('start_date_time', { ascending: false });
-      
-      if (error) throw error;
-      return data as Appointment[];
-    },
+  const { data: appointments = [], isLoading } = useQuery<AppointmentWithDetails[]>({
+    queryKey: ['/api/appointments/with-details'],
   });
 
-  const { data: patients = [] } = useQuery({
-    queryKey: ['patients'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('patients')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      return data as Patient[];
-    },
+  const { data: patients = [] } = useQuery<Patient[]>({
+    queryKey: ['/api/patients'],
   });
 
   const filteredAppointments = useMemo(() => {
@@ -63,13 +58,12 @@ export function PatientsView() {
 
       const matchesSearch = search === '' || 
         patient.first_name.toLowerCase().includes(search.toLowerCase()) ||
-        (patient.last_name?.toLowerCase().includes(search.toLowerCase())) ||
-        (patient.phone_number?.includes(search));
+        (patient.last_name?.toLowerCase().includes(search.toLowerCase()));
 
       const matchesStatus = statusFilter === 'all' || apt.status === statusFilter;
 
       const matchesDate = !dateFilter || 
-        apt.start_date_time.startsWith(dateFilter);
+        apt.startDateTime.startsWith(dateFilter);
 
       return matchesSearch && matchesStatus && matchesDate;
     });
@@ -78,11 +72,6 @@ export function PatientsView() {
   const getServiceName = (service: { name_arm: string; name_ru: string } | null) => {
     if (!service) return '-';
     return language === 'ARM' ? service.name_arm : service.name_ru;
-  };
-
-  const getPatientLanguage = (lang: string | null) => {
-    if (lang === 'ARM') return language === 'ARM' ? 'Հdelays' : 'Армянский';
-    return language === 'ARM' ? 'Rrdelays' : 'Русский';
   };
 
   if (isLoading) {
@@ -95,7 +84,6 @@ export function PatientsView() {
 
   return (
     <div className="space-y-6">
-      {/* Header Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="medical-card">
           <CardContent className="pt-6">
@@ -144,7 +132,6 @@ export function PatientsView() {
         </Card>
       </div>
 
-      {/* Filters */}
       <Card className="medical-card">
         <CardHeader>
           <CardTitle className="text-lg">{t(language, 'patients.title')}</CardTitle>
@@ -158,11 +145,12 @@ export function PatientsView() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-10"
+                data-testid="input-search"
               />
             </div>
 
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full md:w-[180px]">
+              <SelectTrigger className="w-full md:w-[180px]" data-testid="select-status-filter">
                 <SelectValue placeholder={t(language, 'common.filter')} />
               </SelectTrigger>
               <SelectContent>
@@ -179,10 +167,10 @@ export function PatientsView() {
               value={dateFilter}
               onChange={(e) => setDateFilter(e.target.value)}
               className="w-full md:w-[180px]"
+              data-testid="input-date-filter"
             />
           </div>
 
-          {/* Table */}
           <div className="rounded-lg border overflow-hidden">
             <Table>
               <TableHeader>
@@ -206,13 +194,14 @@ export function PatientsView() {
                 ) : (
                   filteredAppointments.map((apt) => {
                     const patient = apt.patients;
-                    const startDate = new Date(apt.start_date_time);
+                    const startDate = new Date(apt.startDateTime);
                     
                     return (
                       <TableRow 
                         key={apt.id} 
                         className="hover:bg-muted/30 cursor-pointer"
-                        onClick={() => patient && navigate(`/patient/${patient.id}`)}
+                        onClick={() => patient && navigate(`/patient/${apt.patientId}`)}
+                        data-testid={`row-appointment-${apt.id}`}
                       >
                         <TableCell>
                           <div className="flex items-center gap-2">
@@ -226,23 +215,17 @@ export function PatientsView() {
                                 {patient?.first_name} {patient?.last_name || ''}
                                 <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100" />
                               </p>
-                              <div className="flex items-center gap-1 md:hidden">
-                                <Phone className="h-3 w-3 text-muted-foreground" />
-                                <span className="text-xs text-muted-foreground">
-                                  {patient?.phone_number || '-'}
-                                </span>
-                              </div>
                             </div>
                           </div>
                         </TableCell>
                         <TableCell className="hidden md:table-cell">
                           <div className="flex items-center gap-2">
                             <Phone className="h-4 w-4 text-muted-foreground" />
-                            {patient?.phone_number || '-'}
+                            -
                           </div>
                         </TableCell>
                         <TableCell>
-                          {apt.custom_reason || getServiceName(apt.services)}
+                          {apt.customReason || getServiceName(apt.services)}
                         </TableCell>
                         <TableCell>
                           {formatDate(startDate, language)}
@@ -252,7 +235,7 @@ export function PatientsView() {
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline">
-                            {apt.duration_minutes} {t(language, 'appointment.minutes')}
+                            {apt.durationMinutes} {t(language, 'appointment.minutes')}
                           </Badge>
                         </TableCell>
                         <TableCell>

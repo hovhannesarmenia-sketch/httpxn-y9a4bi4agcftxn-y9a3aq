@@ -177,7 +177,7 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
     if (!editDate || !editTime) {
       toast({
         title: t('common.error'),
-        description: language === 'ARM' ? 'Ընdelays' : 'Выберите дату и время',
+        description: language === 'ARM' ? 'Ընտրեք ամսաթիվը և ժամը' : 'Выберите дату и время',
         variant: 'destructive',
       });
       return;
@@ -197,7 +197,7 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
       });
       toast({
         title: t('common.success'),
-        description: language === 'ARM' ? 'Գdelays' : 'Запись обновлена',
+        description: language === 'ARM' ? 'Գրանցումը թարմացվեց' : 'Запись обновлена',
       });
       setIsEditMode(false);
       onUpdate();
@@ -221,7 +221,7 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
           <div className="flex items-center justify-between">
             <DialogTitle>
               {isEditMode 
-                ? (language === 'ARM' ? 'Խdelays' : 'Редактирование записи')
+                ? (language === 'ARM' ? 'Խմբագրել գրանցումը' : 'Редактирование записи')
                 : t('appointment.new')
               }
             </DialogTitle>
@@ -264,7 +264,7 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <CalendarIcon className="h-4 w-4" />
-                    {language === 'ARM' ? 'Ամdelays' : 'Дата'}
+                    {language === 'ARM' ? 'Ամսաթիվ' : 'Дата'}
                   </Label>
                   <Popover>
                     <PopoverTrigger asChild>
@@ -275,7 +275,7 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
                           !editDate && 'text-muted-foreground'
                         )}
                       >
-                        {editDate ? format(editDate, 'PPP', { locale }) : (language === 'ARM' ? ' Delays' : 'Выберите')}
+                        {editDate ? format(editDate, 'PPP', { locale }) : (language === 'ARM' ? 'Ընտրեք' : 'Выберите')}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
@@ -293,11 +293,11 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <Clock className="h-4 w-4" />
-                    {language === 'ARM' ? 'Ժdelays' : 'Время'}
+                    {language === 'ARM' ? 'Ժամ' : 'Время'}
                   </Label>
                   <Select value={editTime} onValueChange={setEditTime}>
                     <SelectTrigger>
-                      <SelectValue placeholder={language === 'ARM' ? 'Ůdelays' : 'Выберите'} />
+                      <SelectValue placeholder={language === 'ARM' ? 'Ընտրեք' : 'Выберите'} />
                     </SelectTrigger>
                     <SelectContent>
                       {generateTimeSlots().map((time) => (
@@ -311,7 +311,7 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
               </div>
 
               <div className="space-y-2">
-                <Label>{language === 'ARM' ? 'Տdelays' : 'Длительность (мин)'}</Label>
+                <Label>{language === 'ARM' ? 'Տևողություն (րոպե)' : 'Длительность (мин)'}</Label>
                 <Select value={editDuration} onValueChange={setEditDuration}>
                   <SelectTrigger>
                     <SelectValue />
@@ -319,7 +319,7 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
                   <SelectContent>
                     {[15, 30, 45, 60, 90, 120].map((min) => (
                       <SelectItem key={min} value={min.toString()}>
-                        {min} {language === 'ARM' ? ' delays' : 'мин'}
+                        {min} {language === 'ARM' ? 'րոպե' : 'мин'}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -327,11 +327,11 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
               </div>
 
               <div className="space-y-2">
-                <Label>{language === 'ARM' ? 'Նdelays' : 'Примечание'}</Label>
+                <Label>{language === 'ARM' ? 'Նշում' : 'Примечание'}</Label>
                 <Textarea
                   value={editNotes}
                   onChange={(e) => setEditNotes(e.target.value)}
-                  placeholder={language === 'ARM' ? 'Հdelays' : 'Дополнительная информация...'}
+                  placeholder={language === 'ARM' ? 'Լրացուցիչ տեղեկություն...' : 'Дополнительная информация...'}
                   rows={2}
                 />
               </div>
@@ -407,7 +407,7 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
                     <Textarea
                       value={rejectionReason}
                       onChange={(e) => setRejectionReason(e.target.value)}
-                      placeholder={language === 'RU' ? 'Причина отказа (необязательно)' : 'Delays'}
+                      placeholder={language === 'RU' ? 'Причина отказа (необязательно)' : 'Պատճառ (ոչ պարտադիր)'}
                       maxLength={150}
                     />
                   </div>
@@ -420,7 +420,7 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
                     <Textarea
                       value={rejectionReason}
                       onChange={(e) => setRejectionReason(e.target.value)}
-                      placeholder={language === 'RU' ? 'Причина отмены' : 'Delays'}
+                      placeholder={language === 'RU' ? 'Причина отмены' : 'Չեղարկման պատճառ'}
                       maxLength={150}
                     />
                 </div>
@@ -437,7 +437,7 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
                 onClick={() => setIsEditMode(false)}
                 disabled={isLoading}
               >
-                {language === 'ARM' ? 'Delays' : 'Отмена'}
+                {language === 'ARM' ? 'Չեղարկել' : 'Отмена'}
               </Button>
               <Button
                 onClick={handleSaveEdit}
@@ -446,7 +446,7 @@ export function AppointmentDialog({ appointment, open, onOpenChange, onUpdate }:
                 data-testid="button-save-appointment"
               >
                 <Save className="h-4 w-4" />
-                {language === 'ARM' ? 'Delays' : 'Сохранить'}
+                {language === 'ARM' ? 'Պահպանել' : 'Сохранить'}
               </Button>
             </>
           ) : (

@@ -137,3 +137,21 @@ export type Service = typeof services.$inferSelect;
 export type Patient = typeof patients.$inferSelect;
 export type Appointment = typeof appointments.$inferSelect;
 export type BlockedDay = typeof blockedDays.$inferSelect;
+
+export const bulkBlockDaysSchema = z.object({
+  dates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
+  reason: z.string().max(200).optional().nullable(),
+});
+
+export const bulkCancelAppointmentsSchema = z.object({
+  appointmentIds: z.array(z.string().uuid()),
+  reason: z.string().max(500).optional().nullable(),
+});
+
+export const createPatientApiSchema = z.object({
+  firstName: z.string().min(1).max(100),
+  lastName: z.string().max(100).optional().nullable(),
+  phoneNumber: z.string().max(50).optional().nullable(),
+  telegramUserId: z.union([z.string(), z.number()]),
+  language: z.enum(["ARM", "RU"]).optional(),
+});
