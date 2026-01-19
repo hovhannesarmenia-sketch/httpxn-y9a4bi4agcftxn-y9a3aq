@@ -1353,7 +1353,7 @@ export async function registerRoutes(app: Express): Promise<void> {
         else if (data === 'show_pricelist') {
           const showPrices = doctor.showPrices ?? false;
           if (!showPrices) {
-            await answerCallbackQuery(doctor.telegramBotToken, callbackQuery.id);
+            await answerCallbackQuery(doctor.telegramBotToken, callbackId);
             return res.sendStatus(200);
           }
           
