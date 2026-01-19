@@ -66,7 +66,7 @@ export function DiagnosticsView() {
 
   const getConnectionStatus = (type: 'telegram' | 'googleCalendar' | 'googleSheets'): ConnectionStatus => {
     if (!integrationStatus) return 'not_configured';
-    
+
     const status = integrationStatus[type];
     if (!status.configured) return 'not_configured';
     return 'connected';
@@ -76,9 +76,9 @@ export function DiagnosticsView() {
     await refetchStatus();
     setLastChecked(new Date());
     toast({
-      title: language === 'ARM' ? 'Stugumner avartvel en' : 'Проверка завершена',
+      title: language === 'ARM' ? 'Ստուգումներն ավարտվել են' : 'Проверка завершена',
       description: language === 'ARM' 
-        ? 'Integratsianeri karvavijakner tharmatsvel en' 
+        ? 'Ինտեգրացիաների կարգավիճակները թարմացվել են' 
         : 'Статусы интеграций обновлены',
     });
   };
@@ -92,7 +92,7 @@ export function DiagnosticsView() {
       toast({
         title: t(language, 'common.success'),
         description: language === 'ARM' 
-          ? 'Test haxordagiry uxxarkvats e'
+          ? 'Թեստային հաղորդագրությունը ուղարկված է'
           : 'Тестовое сообщение отправлено',
       });
     },
@@ -100,7 +100,7 @@ export function DiagnosticsView() {
       toast({
         title: t(language, 'common.error'),
         description: error.message || (language === 'ARM'
-          ? 'Chi hajoxvats uxarkel haxordagirutyuny'
+          ? 'Չհաջողվեց ուղարկել հաղորդագրությունը'
           : 'Не удалось отправить сообщение'),
         variant: 'destructive',
       });
@@ -145,13 +145,13 @@ export function DiagnosticsView() {
       case 'not_configured':
         return (
           <Badge variant="outline" className="text-muted-foreground" data-testid="badge-not-configured">
-            {language === 'ARM' ? 'Chkarxavorvats' : 'Не настроено'}
+            {language === 'ARM' ? 'Կարգավորված չէ' : 'Не настроено'}
           </Badge>
         );
       default:
         return (
           <Badge variant="outline" data-testid="badge-unknown">
-            {language === 'ARM' ? 'Anhayt' : 'Неизвестно'}
+            {language === 'ARM' ? 'Անհայտ' : 'Неизвестно'}
           </Badge>
         );
     }
@@ -176,7 +176,7 @@ export function DiagnosticsView() {
           <h1 className="text-2xl font-bold" data-testid="text-diagnostics-title">{t(language, 'diagnostics.title')}</h1>
           {lastChecked && (
             <p className="text-sm text-muted-foreground" data-testid="text-last-checked">
-              {language === 'ARM' ? 'Vergin stugum:' : 'Последняя проверка:'}{' '}
+              {language === 'ARM' ? 'Վերջին ստուգում՝' : 'Последняя проверка:'}{' '}
               {lastChecked.toLocaleTimeString()}
             </p>
           )}
@@ -188,7 +188,7 @@ export function DiagnosticsView() {
           data-testid="button-refresh-status"
         >
           <RefreshCw className="h-4 w-4 mr-2" />
-          {language === 'ARM' ? 'Stugel' : 'Проверить'}
+          {language === 'ARM' ? 'Ստուգել' : 'Проверить'}
         </Button>
       </div>
 
@@ -206,7 +206,7 @@ export function DiagnosticsView() {
                   <p className="text-sm text-muted-foreground" data-testid="text-telegram-info">
                     {integrationStatus?.telegram.hasBotToken 
                       ? `Token: ••••••`
-                      : language === 'ARM' ? 'Token chkarxavorvats' : 'Token не настроен'
+                      : language === 'ARM' ? 'Token-ը կարգավորված չէ' : 'Token не настроен'
                     }
                     {doctor?.telegramChatId 
                       ? ` | Chat ID: ${doctor.telegramChatId}`
@@ -238,11 +238,11 @@ export function DiagnosticsView() {
                       ? `ID: ${doctor.googleCalendarId.length > 30 
                           ? doctor.googleCalendarId.substring(0, 30) + '...' 
                           : doctor.googleCalendarId}`
-                      : language === 'ARM' ? 'Calendar ID chkarxavorvats' : 'Calendar ID не настроен'
+                      : language === 'ARM' ? 'Calendar ID կարգավորված չէ' : 'Calendar ID не настроен'
                     }
                     {!integrationStatus?.googleCalendar.hasServiceAccount && (
                       <span className="text-yellow-500 ml-2">
-                        ({language === 'ARM' ? 'Service Account pahanjvum e' : 'Требуется Service Account'})
+                        ({language === 'ARM' ? 'Պահանջվում է Service Account' : 'Требуется Service Account'})
                       </span>
                     )}
                   </p>
@@ -271,11 +271,11 @@ export function DiagnosticsView() {
                       ? `ID: ${doctor.googleSheetId.length > 30 
                           ? doctor.googleSheetId.substring(0, 30) + '...' 
                           : doctor.googleSheetId}`
-                      : language === 'ARM' ? 'Sheet ID chkarxavorvats' : 'Sheet ID не настроен'
+                      : language === 'ARM' ? 'Sheet ID կարգավորված չէ' : 'Sheet ID не настроен'
                     }
                     {!integrationStatus?.googleSheets.hasServiceAccount && (
                       <span className="text-yellow-500 ml-2">
-                        ({language === 'ARM' ? 'Service Account pahanjvum e' : 'Требуется Service Account'})
+                        ({language === 'ARM' ? 'Պահանջվում է Service Account' : 'Требуется Service Account'})
                       </span>
                     )}
                   </p>
@@ -296,7 +296,7 @@ export function DiagnosticsView() {
           <CardTitle>{t(language, 'diagnostics.testMessage')}</CardTitle>
           <CardDescription>
             {language === 'ARM' 
-              ? 'Uxarkel test haxordagir Telegram-um'
+              ? 'Ուղարկել թեստային հաղորդագրություն Telegram-ում'
               : 'Отправить тестовое сообщение в Telegram'
             }
           </CardDescription>
@@ -317,7 +317,7 @@ export function DiagnosticsView() {
           {!integrationStatus?.telegram.configured && (
             <p className="text-sm text-muted-foreground mt-2" data-testid="text-telegram-hint">
               {language === 'ARM' 
-                ? 'Nakh karxavoriq Telegram Token-y ev Chat ID-n Settings → Integrations baxnum'
+                ? 'Նախ կարգավորեք Telegram Token-ը և Chat ID-ն Settings → Integrations բաժնում'
                 : 'Сначала настройте Telegram Token и Chat ID в разделе Настройки → Интеграции'
               }
             </p>
@@ -328,33 +328,33 @@ export function DiagnosticsView() {
       {/* System Info */}
       <Card data-testid="card-system-info">
         <CardHeader>
-          <CardTitle>{language === 'ARM' ? 'Hamakargayin teghekutyun' : 'Системная информация'}</CardTitle>
+          <CardTitle>{language === 'ARM' ? 'Համակարգային տեղեկատվություն' : 'Системная информация'}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
-              <p className="text-muted-foreground">{language === 'ARM' ? 'Tarberaky' : 'Версия'}</p>
-              <p className="font-medium" data-testid="text-version">1.0.0 MVP</p>
+              <p className="text-muted-foreground">{language === 'ARM' ? 'Տարբերակ' : 'Версия'}</p>
+              <p className="font-medium" data-testid="text-version">1.0.0</p>
             </div>
             <div>
-              <p className="text-muted-foreground">{language === 'ARM' ? 'Zhamagotvadrky' : 'Часовой пояс'}</p>
+              <p className="text-muted-foreground">{language === 'ARM' ? 'Ժամային գոտի' : 'Часовой пояс'}</p>
               <p className="font-medium" data-testid="text-timezone">Asia/Yerevan</p>
             </div>
             <div>
-              <p className="text-muted-foreground">{language === 'ARM' ? 'Lezuner' : 'Языки'}</p>
+              <p className="text-muted-foreground">{language === 'ARM' ? 'Լեզուներ' : 'Языки'}</p>
               <p className="font-medium" data-testid="text-languages">ARM, RU</p>
             </div>
             <div>
-              <p className="text-muted-foreground">{language === 'ARM' ? 'Slot qayl' : 'Слот-шаг'}</p>
+              <p className="text-muted-foreground">{language === 'ARM' ? 'Ընդունելության տևողություն (սլոթ)' : 'Длительность приема'}</p>
               <p className="font-medium" data-testid="text-slot-step">{doctor?.slotStepMinutes || 15} {t(language, 'appointment.minutes')}</p>
             </div>
             <div>
-              <p className="text-muted-foreground">{language === 'ARM' ? 'Bzhishk' : 'Врач'}</p>
+              <p className="text-muted-foreground">{language === 'ARM' ? 'Բժիշկ' : 'Врач'}</p>
               <p className="font-medium" data-testid="text-doctor-name">{doctor?.firstName} {doctor?.lastName}</p>
             </div>
             <div>
-              <p className="text-muted-foreground">{language === 'ARM' ? 'AI ognutyun' : 'AI ассистент'}</p>
-              <p className="font-medium" data-testid="text-ai-status">{doctor?.aiEnabled ? 'Активен' : 'Отключён'}</p>
+              <p className="text-muted-foreground">{language === 'ARM' ? 'AI օգնական' : 'AI ассистент'}</p>
+              <p className="font-medium" data-testid="text-ai-status">{doctor?.aiEnabled ? 'Ակտիվ է' : 'Անջատված է'}</p>
             </div>
           </div>
         </CardContent>

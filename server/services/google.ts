@@ -52,11 +52,11 @@ export async function getGoogleAccessToken(scope: string): Promise<string> {
     body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
   });
 
-  const tokenData = await response.json() as { access_token?: string; error?: string };
+  const tokenData = await response.json() as { access_token?: string; error?: string; error_description?: string };
   
   if (!tokenData.access_token) {
-    console.error('Failed to get access token:', tokenData);
-    throw new Error('Failed to get Google access token');
+    console.error('Failed to get Google access token:', tokenData);
+    throw new Error(`Failed to get Google access token: ${tokenData.error_description || tokenData.error || 'Unknown error'}`);
   }
 
   return tokenData.access_token;
@@ -85,10 +85,10 @@ export async function createCalendarEvent(calendarId: string, event: CalendarEve
     }
   );
 
-  const eventData = await response.json() as { id?: string; error?: { message?: string } };
+  const eventData = await response.json() as any;
   
   if (!response.ok) {
-    console.error('Calendar API error:', eventData);
+    console.error('Calendar API error details:', JSON.stringify(eventData, null, 2));
     throw new Error(eventData.error?.message || 'Failed to create calendar event');
   }
 

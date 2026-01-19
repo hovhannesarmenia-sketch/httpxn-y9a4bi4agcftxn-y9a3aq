@@ -24,6 +24,8 @@ export const doctor = pgTable("doctor", {
   workDays: text("work_days").array().default(["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"]),
   workDayStartTime: time("work_day_start_time").default("09:00"),
   workDayEndTime: time("work_day_end_time").default("18:00"),
+  lunchStartTime: time("lunch_start_time"),
+  lunchEndTime: time("lunch_end_time"),
   slotStepMinutes: integer("slot_step_minutes").default(15),
   telegramBotToken: text("telegram_bot_token"),
   telegramChatId: text("telegram_chat_id"),
@@ -33,6 +35,7 @@ export const doctor = pgTable("doctor", {
   llmApiBaseUrl: text("llm_api_base_url"),
   llmApiKey: text("llm_api_key"),
   llmModelName: text("llm_model_name").default("deepseek-chat"),
+  showPrices: boolean("show_prices").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -53,6 +56,8 @@ export const services = pgTable("services", {
   nameArm: varchar("name_arm", { length: 200 }).notNull(),
   nameRu: varchar("name_ru", { length: 200 }).notNull(),
   defaultDurationMinutes: integer("default_duration_minutes").default(30).notNull(),
+  priceMin: integer("price_min"),
+  priceMax: integer("price_max"),
   isActive: boolean("is_active").default(true),
   sortOrder: integer("sort_order").default(0),
   createdAt: timestamp("created_at").defaultNow(),
@@ -94,6 +99,16 @@ export const blockedDays = pgTable("blocked_days", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const blockedSlots = pgTable("blocked_slots", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  doctorId: uuid("doctor_id").references(() => doctor.id).notNull(),
+  blockedDate: varchar("blocked_date", { length: 10 }).notNull(),
+  startTime: varchar("start_time", { length: 5 }).notNull(),
+  durationMinutes: integer("duration_minutes").notNull(),
+  reason: text("reason"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const reminderLogs = pgTable("reminder_logs", {
   id: uuid("id").primaryKey().defaultRandom(),
   appointmentId: uuid("appointment_id").references(() => appointments.id).notNull(),
@@ -123,6 +138,7 @@ export const insertServiceSchema = createInsertSchema(services).omit({ id: true,
 export const insertPatientSchema = createInsertSchema(patients).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertAppointmentSchema = createInsertSchema(appointments).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertBlockedDaySchema = createInsertSchema(blockedDays).omit({ id: true, createdAt: true });
+export const insertBlockedSlotSchema = createInsertSchema(blockedSlots).omit({ id: true, createdAt: true });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertDoctor = z.infer<typeof insertDoctorSchema>;
@@ -130,6 +146,7 @@ export type InsertService = z.infer<typeof insertServiceSchema>;
 export type InsertPatient = z.infer<typeof insertPatientSchema>;
 export type InsertAppointment = z.infer<typeof insertAppointmentSchema>;
 export type InsertBlockedDay = z.infer<typeof insertBlockedDaySchema>;
+export type InsertBlockedSlot = z.infer<typeof insertBlockedSlotSchema>;
 
 export type User = typeof users.$inferSelect;
 export type Doctor = typeof doctor.$inferSelect;
@@ -137,6 +154,7 @@ export type Service = typeof services.$inferSelect;
 export type Patient = typeof patients.$inferSelect;
 export type Appointment = typeof appointments.$inferSelect;
 export type BlockedDay = typeof blockedDays.$inferSelect;
+export type BlockedSlot = typeof blockedSlots.$inferSelect;
 
 export const bulkBlockDaysSchema = z.object({
   dates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),

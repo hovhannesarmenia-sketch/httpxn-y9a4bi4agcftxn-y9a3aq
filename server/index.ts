@@ -4,6 +4,8 @@ import { createServer } from "http";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { startReminderService } from "./services/reminders";
+import { setupWebhookForDoctor } from "./services/telegram";
+import { storage } from "./storage";
 
 declare module "express-session" {
   interface SessionData {
@@ -80,8 +82,20 @@ app.use((req, res, next) => {
   server.listen({
     port,
     host: "0.0.0.0",
-  }, () => {
+  }, async () => {
     log(`serving on port ${port}`);
     startReminderService();
+    
+    // Auto-setup Telegram webhooks for all configured doctors
+    try {
+      const doctors = await storage.getAllDoctors();
+      for (const doctor of doctors) {
+        if (doctor.telegramBotToken) {
+          await setupWebhookForDoctor(doctor.telegramBotToken);
+        }
+      }
+    } catch (error) {
+      console.error('[Startup] Failed to auto-setup webhooks:', error);
+    }
   });
 })();

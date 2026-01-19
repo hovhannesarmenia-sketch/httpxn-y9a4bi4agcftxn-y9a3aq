@@ -11,6 +11,7 @@ import { ru, hy } from 'date-fns/locale';
 import { AppointmentDialog } from './AppointmentDialog';
 import { ManualBookingDialog } from './ManualBookingDialog';
 import { BlockedDaysManager } from './BlockedDaysManager';
+import { BlockedSlotsManager } from './BlockedSlotsManager';
 
 type Appointment = {
   id: string;
@@ -377,6 +378,13 @@ export function CalendarView() {
                   )}
                 </button>
               ))
+            )}
+            
+            {!selectedDateBlockedInfo && (
+              <BlockedSlotsManager 
+                selectedDate={selectedDate}
+                onSlotsChange={fetchAppointments}
+              />
             )}
           </CardContent>
         </Card>

@@ -47,6 +47,7 @@ MedBook is a medical appointment booking system designed for doctors in Armenia.
 - **patients**: Patient records (via Telegram)
 - **appointments**: Booking records
 - **blocked_days**: Days unavailable for booking
+- **blocked_slots**: Specific time intervals unavailable for booking (flexible scheduling)
 - **telegram_sessions**: Telegram bot session state
 
 ## API Endpoints
@@ -59,6 +60,7 @@ MedBook is a medical appointment booking system designed for doctors in Armenia.
 - `GET/POST /api/services` - Services CRUD
 - `GET/POST/PATCH/DELETE /api/appointments` - Appointments CRUD
 - `GET/POST/DELETE /api/blocked-days` - Blocked days management
+- `GET/POST/DELETE /api/blocked-slots` - Blocked time slots (flexible scheduling)
 
 ## Development Commands
 ```bash
@@ -82,6 +84,10 @@ npm run build        # Build for production
 - [x] Full Telegram booking flow (Date → Time → Service → Name → Phone with validation)
 - [x] Smart notifications (simple for patient, detailed for doctor's admin chat)
 - [x] Automatic 24-hour appointment reminders via node-cron service
+- [x] Flexible scheduling - block specific time intervals (e.g., lunch breaks)
+- [x] Lunch break configuration (filters slots during lunch hours)
+- [x] Automatic Telegram webhook setup on server startup
+- [x] Auto-webhook setup when doctor updates Telegram settings
 - [ ] PatientsView migrated
 
 ## User Preferences

@@ -25,6 +25,8 @@ interface Doctor {
   workDays: string[] | null;
   workDayStartTime: string | null;
   workDayEndTime: string | null;
+  lunchStartTime: string | null;
+  lunchEndTime: string | null;
   slotStepMinutes: number | null;
   telegramBotToken: string | null;
   telegramChatId: string | null;
@@ -34,6 +36,7 @@ interface Doctor {
   llmApiBaseUrl: string | null;
   llmApiKey: string | null;
   llmModelName: string | null;
+  showPrices: boolean | null;
   hasTelegramToken?: boolean;
   hasLlmKey?: boolean;
 }
@@ -44,6 +47,8 @@ interface Service {
   nameArm: string;
   nameRu: string;
   defaultDurationMinutes: number;
+  priceMin: number | null;
+  priceMax: number | null;
   isActive: boolean | null;
   sortOrder: number | null;
 }
@@ -62,6 +67,8 @@ export function SettingsView() {
     nameArm: '',
     nameRu: '',
     defaultDurationMinutes: 30,
+    priceMin: null,
+    priceMax: null,
     isActive: true,
   });
   const [showApiKey, setShowApiKey] = useState(false);
@@ -99,12 +106,15 @@ export function SettingsView() {
         workDays: doctor.workDays,
         workDayStartTime: doctor.workDayStartTime,
         workDayEndTime: doctor.workDayEndTime,
+        lunchStartTime: doctor.lunchStartTime,
+        lunchEndTime: doctor.lunchEndTime,
         slotStepMinutes: doctor.slotStepMinutes,
         googleCalendarId: doctor.googleCalendarId,
         googleSheetId: doctor.googleSheetId,
         telegramChatId: doctor.telegramChatId,
         aiEnabled: doctor.aiEnabled,
         llmModelName: doctor.llmModelName,
+        showPrices: doctor.showPrices,
         telegramBotToken: '',
         llmApiKey: '',
         llmApiBaseUrl: '',
@@ -163,6 +173,8 @@ export function SettingsView() {
         nameRu: service.nameRu,
         defaultDurationMinutes: service.defaultDurationMinutes,
         isActive: service.isActive,
+        priceMin: service.priceMin,
+        priceMax: service.priceMax,
       });
     },
     onSuccess: () => {
@@ -179,6 +191,8 @@ export function SettingsView() {
         defaultDurationMinutes: service.defaultDurationMinutes || 30,
         isActive: service.isActive ?? true,
         sortOrder: services.length,
+        priceMin: service.priceMin,
+        priceMax: service.priceMax,
       });
     },
     onSuccess: () => {
@@ -188,6 +202,8 @@ export function SettingsView() {
         nameRu: '',
         defaultDurationMinutes: 30,
         isActive: true,
+        priceMin: null,
+        priceMax: null,
       });
       toast({ title: t(language, 'common.success') });
     },
@@ -213,19 +229,6 @@ export function SettingsView() {
     onError: (error) => {
       console.error('Telegram test failed:', error);
       toast({ title: 'Telegram test failed', variant: 'destructive' });
-    },
-  });
-
-  const setupWebhook = useMutation({
-    mutationFn: async () => {
-      return apiRequest('POST', '/api/integrations/setup-telegram-webhook');
-    },
-    onSuccess: () => {
-      toast({ title: 'Webhook configured!', description: 'Telegram bot is now active.' });
-    },
-    onError: (error) => {
-      console.error('Webhook setup failed:', error);
-      toast({ title: 'Webhook setup failed', variant: 'destructive' });
     },
   });
 
@@ -384,6 +387,35 @@ export function SettingsView() {
               </div>
 
               <div className="space-y-2">
+                <Label>{t(language, 'settings.lunchBreak')}</Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm text-muted-foreground">{t(language, 'settings.from')}</Label>
+                    <Input
+                      type="time"
+                      data-testid="input-lunch-start"
+                      value={doctorForm.lunchStartTime || ''}
+                      onChange={(e) => setDoctorForm({ ...doctorForm, lunchStartTime: e.target.value })}
+                      placeholder="--:--"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm text-muted-foreground">{t(language, 'settings.to')}</Label>
+                    <Input
+                      type="time"
+                      data-testid="input-lunch-end"
+                      value={doctorForm.lunchEndTime || ''}
+                      onChange={(e) => setDoctorForm({ ...doctorForm, lunchEndTime: e.target.value })}
+                      placeholder="--:--"
+                    />
+                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {t(language, 'settings.lunchBreakHint')}
+                </p>
+              </div>
+
+              <div className="space-y-2">
                 <Label>Slot Step (minutes)</Label>
                 <Select
                   value={String(doctorForm.slotStepMinutes || 15)}
@@ -422,7 +454,7 @@ export function SettingsView() {
               <div className="space-y-4">
                 {services.map((service, index) => (
                   <div key={service.id || index} className="flex flex-col md:flex-row gap-3 p-4 rounded-lg border bg-muted/20" data-testid={`service-row-${index}`}>
-                    <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="flex-1 grid grid-cols-1 md:grid-cols-5 gap-3">
                       <Input
                         placeholder={t(language, 'settings.serviceNameArm')}
                         value={service.nameArm || ''}
@@ -458,6 +490,28 @@ export function SettingsView() {
                           <SelectItem value="90">90 {t(language, 'appointment.minutes')}</SelectItem>
                         </SelectContent>
                       </Select>
+                      <Input
+                        type="number"
+                        placeholder={t(language, 'settings.priceMin')}
+                        value={service.priceMin ?? ''}
+                        onChange={(e) => {
+                          const updated = [...services];
+                          updated[index] = { ...updated[index], priceMin: e.target.value ? parseInt(e.target.value) : null };
+                          setServices(updated);
+                        }}
+                        data-testid={`input-service-price-min-${index}`}
+                      />
+                      <Input
+                        type="number"
+                        placeholder={t(language, 'settings.priceMax')}
+                        value={service.priceMax ?? ''}
+                        onChange={(e) => {
+                          const updated = [...services];
+                          updated[index] = { ...updated[index], priceMax: e.target.value ? parseInt(e.target.value) : null };
+                          setServices(updated);
+                        }}
+                        data-testid={`input-service-price-max-${index}`}
+                      />
                     </div>
                     <div className="flex items-center gap-2">
                       <Switch
@@ -491,7 +545,7 @@ export function SettingsView() {
               </div>
 
               <div className="flex flex-col md:flex-row gap-3 p-4 rounded-lg border border-dashed">
-                <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="flex-1 grid grid-cols-1 md:grid-cols-5 gap-3">
                   <Input
                     placeholder={t(language, 'settings.serviceNameArm')}
                     value={newService.nameArm || ''}
@@ -517,6 +571,20 @@ export function SettingsView() {
                       <SelectItem value="90">90 {t(language, 'appointment.minutes')}</SelectItem>
                     </SelectContent>
                   </Select>
+                  <Input
+                    type="number"
+                    placeholder={t(language, 'settings.priceMin')}
+                    value={newService.priceMin ?? ''}
+                    onChange={(e) => setNewService({ ...newService, priceMin: e.target.value ? parseInt(e.target.value) : null })}
+                    data-testid="input-new-service-price-min"
+                  />
+                  <Input
+                    type="number"
+                    placeholder={t(language, 'settings.priceMax')}
+                    value={newService.priceMax ?? ''}
+                    onChange={(e) => setNewService({ ...newService, priceMax: e.target.value ? parseInt(e.target.value) : null })}
+                    data-testid="input-new-service-price-max"
+                  />
                 </div>
                 <Button
                   onClick={() => addService.mutate(newService)}
@@ -572,27 +640,31 @@ export function SettingsView() {
                 </p>
               </div>
 
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => testTelegram.mutate()}
-                  disabled={testTelegram.isPending || !integrationStatus?.telegram.configured}
-                  data-testid="button-test-telegram"
-                >
-                  <TestTube className="h-4 w-4 mr-2" />
-                  Test Connection
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setupWebhook.mutate()}
-                  disabled={setupWebhook.isPending || !integrationStatus?.telegram.hasBotToken}
-                  data-testid="button-setup-webhook"
-                >
-                  Setup Bot Webhook
-                </Button>
+              <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/20">
+                <div className="space-y-1">
+                  <Label htmlFor="show-prices-toggle">{t(language, 'settings.showPrices')}</Label>
+                  <p className="text-xs text-muted-foreground">
+                    {t(language, 'settings.showPricesHint')}
+                  </p>
+                </div>
+                <Switch
+                  id="show-prices-toggle"
+                  checked={doctorForm.showPrices ?? false}
+                  onCheckedChange={(checked) => setDoctorForm({ ...doctorForm, showPrices: checked })}
+                  data-testid="switch-show-prices"
+                />
               </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => testTelegram.mutate()}
+                disabled={testTelegram.isPending || !integrationStatus?.telegram.configured}
+                data-testid="button-test-telegram"
+              >
+                <TestTube className="h-4 w-4 mr-2" />
+                Test Connection
+              </Button>
 
               <div className="space-y-2">
                 <Label>{t(language, 'settings.googleCalendarId')}</Label>

@@ -7,6 +7,7 @@ import {
   patients,
   appointments,
   blockedDays,
+  blockedSlots,
   doctorCredentials,
   telegramSessions,
   reminderLogs,
@@ -16,12 +17,14 @@ import {
   InsertPatient,
   InsertAppointment,
   InsertBlockedDay,
+  InsertBlockedSlot,
   User,
   Doctor,
   Service,
   Patient,
   Appointment,
   BlockedDay,
+  BlockedSlot,
 } from "../shared/schema";
 import bcrypt from "bcryptjs";
 
@@ -56,6 +59,10 @@ export interface IStorage {
   getBlockedDays(doctorId: string): Promise<BlockedDay[]>;
   createBlockedDay(data: InsertBlockedDay): Promise<BlockedDay>;
   deleteBlockedDay(id: string): Promise<boolean>;
+  
+  getBlockedSlots(doctorId: string, date?: string): Promise<BlockedSlot[]>;
+  createBlockedSlot(data: InsertBlockedSlot): Promise<BlockedSlot>;
+  deleteBlockedSlot(id: string): Promise<boolean>;
   
   getTelegramSession(telegramUserId: string): Promise<TelegramSession | undefined>;
   upsertTelegramSession(telegramUserId: string, data: Partial<TelegramSessionData>): Promise<TelegramSession>;
@@ -222,6 +229,25 @@ export class DatabaseStorage implements IStorage {
 
   async deleteBlockedDay(id: string): Promise<boolean> {
     await db.delete(blockedDays).where(eq(blockedDays.id, id));
+    return true;
+  }
+
+  async getBlockedSlots(doctorId: string, date?: string): Promise<BlockedSlot[]> {
+    if (date) {
+      return db.select().from(blockedSlots).where(
+        and(eq(blockedSlots.doctorId, doctorId), eq(blockedSlots.blockedDate, date))
+      );
+    }
+    return db.select().from(blockedSlots).where(eq(blockedSlots.doctorId, doctorId));
+  }
+
+  async createBlockedSlot(data: InsertBlockedSlot): Promise<BlockedSlot> {
+    const [slot] = await db.insert(blockedSlots).values(data).returning();
+    return slot;
+  }
+
+  async deleteBlockedSlot(id: string): Promise<boolean> {
+    await db.delete(blockedSlots).where(eq(blockedSlots.id, id));
     return true;
   }
 

@@ -1,0 +1,41 @@
+CRITICAL UI & LANGUAGE FIX (ONE-SHOT TASK)
+
+We need to fully localize the Telegram Bot into proper Armenian and clean up the UI.
+Open `server/routes.ts` (where the Telegram logic resides) and strictly REPLACE the existing message strings with the translations below.
+
+1.  **Greeting (Screenshot 4 fix):**
+    * Find: "Բարև եկավ! / Добро пожаловать!" (or similar greeting).
+    * Replace with: "Բարի գալուստ։ Ես Ձեր անձնական բժշկական օգնականն եմ։ 🤖"
+
+2.  **Inputs & Errors (Screenshot 8 & 9 fix):**
+    * Find: "👇 Пожалуйста, используйте кнопки ниже" (or English equiv).
+    * Replace with: "Խնդրում ենք օգտագործել ներքևի կոճակները 👇"
+    * Find: "Выберите дату" / "Select a date".
+    * Replace with: "📅 Ընտրեք այցելության օրը՝"
+    * Find: "Выберите время" / "Select a time".
+    * Replace with: "⏰ Ընտրեք ժամը՝"
+    * Find: "Введите ваше имя" / "Enter your name".
+    * Replace with: "✍️ Խնդրում ենք գրել Ձեր Անուն Ազգանունը՝"
+
+3.  **Phone Button (Screenshot 10 fix):**
+    * Find the keyboard button for phone request.
+    * Replace Text with: "📱 Ուղարկել իմ հեռախոսահամարը" (Ensure request_contact: true).
+    * Find Prompt: "Нажмите кнопку..."
+    * Replace with: "Սեղմեք ներքևի կոճակը՝ Ձեր հեռախոսահամարը ուղարկելու համար 👇"
+
+4.  **Doctor Notification (Screenshot 6 fix - Convert Russian to Armenian):**
+    * Find the message sent to Doctor ("Новая заявка!").
+    * Replace logic to send:
+        "🆕 Նոր գրանցում!\n\n👤 Հիվանդ՝ ${name}\n📞 Հեռախոս՝ ${phone}\n🗓 Օր՝ ${date}\n⏰ Ժամ՝ ${time}\n🏥 Ծառայություն՝ ${service}"
+    * **Buttons:**
+        * "Подтвердить" -> "✅ Հաստատել"
+        * "Отклонить" -> "❌ Մերժել"
+
+5.  **Confirmation to Patient (Screenshot 7 fix):**
+    * Find: "Врач подтвердил вашу запись!"
+    * Replace with: "✅ Բժիշկը հաստատեց Ձեր գրանցումը։\nՍպասում ենք Ձեզ՝ ${date} - ${time}"
+
+6.  **Cleanup:**
+    * Search entire project for "MVP" and delete that word from the UI.
+
+APPLY THESE CHANGES IMMEDIATELY. Do not explain, just execute.

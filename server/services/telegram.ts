@@ -85,6 +85,27 @@ export async function deleteWebhook(botToken: string): Promise<void> {
   });
 }
 
+export async function setupWebhookForDoctor(botToken: string): Promise<string | null> {
+  const domainsEnv = process.env.REPLIT_DOMAINS || process.env.REPLIT_DEV_DOMAIN;
+  if (!domainsEnv) {
+    console.log('[Webhook] No domain configured, skipping webhook setup');
+    return null;
+  }
+  
+  const domain = domainsEnv.split(',')[0].trim();
+  const webhookUrl = `https://${domain}/api/telegram-webhook`;
+  
+  try {
+    await deleteWebhook(botToken);
+    await setWebhook(botToken, webhookUrl);
+    console.log('[Webhook] Auto-configured webhook to:', webhookUrl);
+    return webhookUrl;
+  } catch (error) {
+    console.error('[Webhook] Auto-setup failed:', error);
+    return null;
+  }
+}
+
 const RU_MONTH_NAMES = [
   'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
   'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
@@ -116,7 +137,7 @@ export function generateCalendarKeyboard(options: CalendarKeyboardOptions): obje
   
   const monthNames = lang === 'ARM' ? ARM_MONTH_NAMES : RU_MONTH_NAMES;
   const monthName = monthNames[month];
-  keyboard.push([{ text: `📅 ${monthName} ${year}`, callback_data: 'calendar_header' }]);
+  keyboard.push([{ text: `${monthName} ${year}`, callback_data: 'calendar_header' }]);
   
   const dayHeaders = lang === 'ARM' ? ARM_DAY_HEADERS : RU_DAY_HEADERS;
   keyboard.push(dayHeaders.map(d => ({ text: d, callback_data: 'day_header' })));
@@ -158,7 +179,7 @@ export function generateCalendarKeyboard(options: CalendarKeyboardOptions): obje
       buttonText = ' ';
       callbackData = 'past_date';
     } else if (!isAvailable) {
-      buttonText = `❌ ${day}`;
+      buttonText = `x${day}`;
       callbackData = 'unavailable';
     } else {
       buttonText = String(day);
@@ -185,8 +206,8 @@ export function generateCalendarKeyboard(options: CalendarKeyboardOptions): obje
   const nextMonth = month === 11 ? 0 : month + 1;
   const nextYear = month === 11 ? year + 1 : year;
   
-  const prevText = lang === 'ARM' ? '\u25C0\uFE0F \u0546\u0561\u056D' : '\u25C0\uFE0F Назад';
-  const nextText = lang === 'ARM' ? '\u0540\u0561\u057B \u25B6\uFE0F' : 'Вперёд \u25B6\uFE0F';
+  const prevText = lang === 'ARM' ? '<< \u0546\u0561\u056D' : '<< Назад';
+  const nextText = lang === 'ARM' ? '\u0540\u0561\u057B >>' : 'Вперёд >>';
   
   keyboard.push([
     { text: prevText, callback_data: `calendar_nav_${prevYear}_${prevMonth}` },
@@ -227,7 +248,7 @@ export function generateTimeSlotKeyboard(
     keyboard.push(row);
   }
   
-  const backText = lang === 'ARM' ? '\u25C0\uFE0F \u0540\u0565\u057f' : '\u25C0\uFE0F Назад';
+  const backText = lang === 'ARM' ? '<< \u0540\u0565\u057f' : '<< Назад';
   keyboard.push([{ text: backText, callback_data: 'back_to_calendar' }]);
   
   return { inline_keyboard: keyboard };
@@ -237,11 +258,25 @@ export interface ServiceOption {
   id: string;
   name: string;
   duration: number;
+  priceMin?: number | null;
+  priceMax?: number | null;
+}
+
+export function formatPrice(priceMin?: number | null, priceMax?: number | null, lang: 'ARM' | 'RU' = 'ARM'): string {
+  if (!priceMin && !priceMax) return '';
+  
+  if (priceMin && priceMax && priceMin !== priceMax) {
+    return `${priceMin.toLocaleString()}-${priceMax.toLocaleString()} AMD`;
+  }
+  
+  const price = priceMin || priceMax;
+  return `${price?.toLocaleString()} AMD`;
 }
 
 export function generateServiceKeyboard(
   services: ServiceOption[],
-  lang: 'ARM' | 'RU'
+  lang: 'ARM' | 'RU',
+  showPrices: boolean = false
 ): object {
   const keyboard: Array<Array<{ text: string; callback_data: string }>> = [];
   
@@ -252,14 +287,57 @@ export function generateServiceKeyboard(
   
   for (const service of services) {
     const durationText = lang === 'ARM' ? `${service.duration} \u0580\u0578\u057a\u0565` : `${service.duration} мин`;
+    let buttonText = `${service.name} (${durationText})`;
+    
+    if (showPrices && (service.priceMin || service.priceMax)) {
+      const priceText = formatPrice(service.priceMin, service.priceMax, lang);
+      buttonText = `${service.name} - ${priceText}`;
+    }
+    
     keyboard.push([{ 
-      text: `${service.name} (${durationText})`, 
+      text: buttonText, 
       callback_data: `select_service_${service.id}` 
     }]);
   }
   
-  const backText = lang === 'ARM' ? '\u25C0\uFE0F \u0540\u0565\u057f' : '\u25C0\uFE0F Назад';
+  const backText = lang === 'ARM' ? '<< \u0540\u0565\u057f' : '<< Назад';
   keyboard.push([{ text: backText, callback_data: 'back_to_time' }]);
+  
+  return { inline_keyboard: keyboard };
+}
+
+export function generatePricelistMessage(
+  services: ServiceOption[],
+  lang: 'ARM' | 'RU'
+): string {
+  const title = lang === 'ARM' ? '\u0533\u0576\u0561\u0581\u0578\u0582\u0581\u0561\u056F' : 'Прайс-лист';
+  const priceLabel = lang === 'ARM' ? '\u0533\u056B\u0576\u0568' : 'Цена';
+  
+  let message = `<b>${title}</b>\n\n`;
+  
+  for (const service of services) {
+    const priceText = formatPrice(service.priceMin, service.priceMax, lang);
+    if (priceText) {
+      message += `\u2022 <b>${service.name}</b>\n  ${priceLabel}: ${priceText}\n\n`;
+    } else {
+      const contactText = lang === 'ARM' ? '\u0540\u0561\u0580\u0581\u0580\u0565\u0584' : 'Уточняйте';
+      message += `\u2022 <b>${service.name}</b>\n  ${priceLabel}: ${contactText}\n\n`;
+    }
+  }
+  
+  return message;
+}
+
+export function generateMainMenuKeyboard(lang: 'ARM' | 'RU', showPrices: boolean = false): object {
+  const bookText = lang === 'ARM' ? '\u0533\u0580\u0561\u0576\u0581\u057E\u0565\u056C' : 'Записаться';
+  const pricelistText = lang === 'ARM' ? '\u0533\u0576\u0561\u0581\u0578\u0582\u0581\u0561\u056F' : 'Прайс-лист';
+  
+  const keyboard: Array<Array<{ text: string; callback_data: string }>> = [];
+  keyboard.push([{ text: bookText, callback_data: 'start_booking' }]);
+  
+  if (showPrices) {
+    keyboard.push([{ text: pricelistText, callback_data: 'show_pricelist' }]);
+  }
   
   return { inline_keyboard: keyboard };
 }
@@ -268,12 +346,23 @@ export function generateAvailableTimeSlots(
   workDayStartTime: string,
   workDayEndTime: string,
   slotStepMinutes: number,
-  bookedTimes: string[]
+  bookedTimes: string[],
+  lunchStartTime?: string | null,
+  lunchEndTime?: string | null
 ): TimeSlot[] {
   const slots: TimeSlot[] = [];
   
   const [startHour, startMin] = workDayStartTime.split(':').map(Number);
   const [endHour, endMin] = workDayEndTime.split(':').map(Number);
+  
+  let lunchStartMinutes = -1;
+  let lunchEndMinutes = -1;
+  if (lunchStartTime && lunchEndTime) {
+    const [lunchSH, lunchSM] = lunchStartTime.split(':').map(Number);
+    const [lunchEH, lunchEM] = lunchEndTime.split(':').map(Number);
+    lunchStartMinutes = lunchSH * 60 + lunchSM;
+    lunchEndMinutes = lunchEH * 60 + lunchEM;
+  }
   
   let currentMinutes = startHour * 60 + startMin;
   const endMinutes = endHour * 60 + endMin;
@@ -284,7 +373,11 @@ export function generateAvailableTimeSlots(
     const timeStr = `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
     
     const isBooked = bookedTimes.includes(timeStr);
-    slots.push({ time: timeStr, available: !isBooked });
+    const slotEnd = currentMinutes + slotStepMinutes;
+    const isDuringLunch = lunchStartMinutes >= 0 && 
+      (currentMinutes < lunchEndMinutes && slotEnd > lunchStartMinutes);
+    
+    slots.push({ time: timeStr, available: !isBooked && !isDuringLunch });
     
     currentMinutes += slotStepMinutes;
   }
