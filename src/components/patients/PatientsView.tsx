@@ -28,12 +28,12 @@ type AppointmentWithDetails = {
   durationMinutes: number;
   status: string | null;
   customReason: string | null;
-  patients: {
-    first_name: string;
-    last_name: string | null;
-    telegram_user_id: number | null;
+  patient: {
+    firstName: string;
+    lastName: string | null;
+    phoneNumber: string | null;
   } | null;
-  services: { name_arm: string; name_ru: string } | null;
+  service: { nameArm: string; nameRu: string } | null;
 };
 
 export function PatientsView() {
@@ -53,12 +53,12 @@ export function PatientsView() {
 
   const filteredAppointments = useMemo(() => {
     return appointments.filter((apt) => {
-      const patient = apt.patients;
+      const patient = apt.patient;
       if (!patient) return false;
 
       const matchesSearch = search === '' || 
-        patient.first_name.toLowerCase().includes(search.toLowerCase()) ||
-        (patient.last_name?.toLowerCase().includes(search.toLowerCase()));
+        patient.firstName.toLowerCase().includes(search.toLowerCase()) ||
+        (patient.lastName?.toLowerCase().includes(search.toLowerCase()));
 
       const matchesStatus = statusFilter === 'all' || apt.status === statusFilter;
 
@@ -69,9 +69,9 @@ export function PatientsView() {
     });
   }, [appointments, search, statusFilter, dateFilter]);
 
-  const getServiceName = (service: { name_arm: string; name_ru: string } | null) => {
+  const getServiceName = (service: { nameArm: string; nameRu: string } | null) => {
     if (!service) return '-';
-    return language === 'ARM' ? service.name_arm : service.name_ru;
+    return language === 'ARM' ? service.nameArm : service.nameRu;
   };
 
   if (isLoading) {
@@ -193,7 +193,7 @@ export function PatientsView() {
                   </TableRow>
                 ) : (
                   filteredAppointments.map((apt) => {
-                    const patient = apt.patients;
+                    const patient = apt.patient;
                     const startDate = new Date(apt.startDateTime);
                     
                     return (
@@ -207,12 +207,12 @@ export function PatientsView() {
                           <div className="flex items-center gap-2">
                             <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
                               <span className="text-xs font-medium text-primary">
-                                {patient?.first_name?.[0]}{patient?.last_name?.[0] || ''}
+                                {patient?.firstName?.[0]}{patient?.lastName?.[0] || ''}
                               </span>
                             </div>
                             <div>
                               <p className="font-medium flex items-center gap-1">
-                                {patient?.first_name} {patient?.last_name || ''}
+                                {patient?.firstName} {patient?.lastName || ''}
                                 <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100" />
                               </p>
                             </div>
@@ -221,11 +221,11 @@ export function PatientsView() {
                         <TableCell className="hidden md:table-cell">
                           <div className="flex items-center gap-2">
                             <Phone className="h-4 w-4 text-muted-foreground" />
-                            -
+                            {patient?.phoneNumber || '-'}
                           </div>
                         </TableCell>
                         <TableCell>
-                          {apt.customReason || getServiceName(apt.services)}
+                          {apt.customReason || getServiceName(apt.service)}
                         </TableCell>
                         <TableCell>
                           {formatDate(startDate, language)}
@@ -239,7 +239,7 @@ export function PatientsView() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <StatusBadge status={apt.status || 'PENDING'} />
+                          <StatusBadge status={(apt.status || 'PENDING') as 'PENDING' | 'CONFIRMED' | 'REJECTED' | 'CANCELLED_BY_DOCTOR'} />
                         </TableCell>
                       </TableRow>
                     );

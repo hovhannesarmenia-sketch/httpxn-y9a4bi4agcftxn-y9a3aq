@@ -1141,14 +1141,37 @@ export async function registerRoutes(app: Express): Promise<void> {
               const phoneNumber = cleanedPhone;
               console.log(`[Webhook] Manual phone number entered: ${phoneNumber}`);
               
-              // Create patient
-              const patient = await storage.createPatient({
-                doctorId: doctor.id,
-                firstName: session.firstName || '',
-                lastName: session.lastName || null,
-                phoneNumber,
-                telegramUserId
-              });
+              const firstName = session.firstName || '';
+              const lastName = session.lastName || '';
+              
+              // Get or create patient (check if exists first to avoid duplicate key error)
+              let patient;
+              try {
+                patient = await storage.getPatientByTelegramUserId(telegramUserId);
+                if (!patient) {
+                  patient = await storage.createPatient({
+                    telegramUserId,
+                    firstName,
+                    lastName: lastName || undefined,
+                    phoneNumber,
+                    language: lang
+                  });
+                } else {
+                  patient = await storage.updatePatient(patient.id, {
+                    firstName,
+                    lastName: lastName || undefined,
+                    phoneNumber
+                  }) || patient;
+                }
+              } catch (patErr: any) {
+                console.error(`[Webhook] Patient registration failed:`, patErr.message);
+                await sendTelegramMessage(doctor.telegramBotToken, chatId, 
+                  lang === 'ARM' ? '\u054D\u056D\u0561\u056C, \u0583\u0578\u0580\u0571\u0565\u0584 \u0576\u0578\u0580\u056B\u0581 /start' : '\u041E\u0448\u0438\u0431\u043A\u0430. \u041F\u043E\u043F\u0440\u043E\u0431\u0443\u0439\u0442\u0435 /start',
+                  { remove_keyboard: true }
+                );
+                await storage.deleteTelegramSession(telegramUserId);
+                return res.json({ ok: true });
+              }
               
               // Create appointment
               const startDateTime = new Date(`${session.selectedDate}T${session.selectedTime}:00`);
