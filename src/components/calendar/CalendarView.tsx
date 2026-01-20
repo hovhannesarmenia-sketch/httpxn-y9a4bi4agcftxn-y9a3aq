@@ -57,7 +57,7 @@ export function CalendarView() {
 
   const fetchAppointments = useCallback(async () => {
     try {
-      const res = await fetch('/api/appointments', { credentials: 'include' });
+      const res = await fetch('/api/appointments/with-details', { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
         setAppointments(data);
@@ -85,6 +85,14 @@ export function CalendarView() {
     if (doctor) {
       fetchAppointments();
       fetchBlockedDays();
+      
+      // Auto-refresh every 3 seconds for real-time updates
+      const interval = setInterval(() => {
+        fetchAppointments();
+        fetchBlockedDays();
+      }, 3000);
+      
+      return () => clearInterval(interval);
     }
   }, [doctor, fetchAppointments, fetchBlockedDays]);
 

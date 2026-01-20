@@ -671,21 +671,21 @@ export async function registerRoutes(app: Express): Promise<void> {
     const appointments = await storage.getAppointments(doctor.id);
     const enriched = await Promise.all(
       appointments.map(async (apt) => {
-        const patient = await storage.getPatient(apt.patientId);
-        let service = null;
+        const patientData = await storage.getPatient(apt.patientId);
+        let serviceData = null;
         if (apt.serviceId) {
-          service = await storage.getService(apt.serviceId);
+          serviceData = await storage.getService(apt.serviceId);
         }
         return {
           ...apt,
-          patients: patient ? {
-            first_name: patient.firstName,
-            last_name: patient.lastName,
-            telegram_user_id: patient.telegramUserId
+          patient: patientData ? {
+            firstName: patientData.firstName,
+            lastName: patientData.lastName,
+            phoneNumber: patientData.phoneNumber
           } : null,
-          services: service ? {
-            name_arm: service.nameArm,
-            name_ru: service.nameRu
+          service: serviceData ? {
+            nameArm: serviceData.nameArm,
+            nameRu: serviceData.nameRu
           } : null
         };
       })
