@@ -34,14 +34,14 @@ const doctorUpdateSchema = z.object({
   lunchStartTime: z.string().optional().or(z.literal('')).transform(v => v === '' ? null : v),
   lunchEndTime: z.string().optional().or(z.literal('')).transform(v => v === '' ? null : v),
   slotStepMinutes: z.number().min(5).max(120).optional(),
-  telegramBotToken: z.string().min(10).optional().or(z.literal('')).transform(v => v === '' ? undefined : v),
-  telegramChatId: z.string().optional().or(z.literal('')).transform(v => v === '' ? undefined : v),
-  googleCalendarId: z.string().optional().or(z.literal('')).transform(v => v === '' ? undefined : v),
-  googleSheetId: z.string().optional().or(z.literal('')).transform(v => v === '' ? undefined : v),
+  telegramBotToken: z.string().optional().nullable().or(z.literal('')).transform(v => v === '' ? null : v),
+  telegramChatId: z.string().optional().nullable().or(z.literal('')).transform(v => v === '' ? null : v),
+  googleCalendarId: z.string().optional().nullable().or(z.literal('')).transform(v => v === '' ? null : v),
+  googleSheetId: z.string().optional().nullable().or(z.literal('')).transform(v => v === '' ? null : v),
   aiEnabled: z.boolean().optional(),
-  llmApiBaseUrl: z.string().optional().or(z.literal('')).transform(v => v === '' ? undefined : v),
-  llmApiKey: z.string().min(5).optional().or(z.literal('')).transform(v => v === '' ? undefined : v),
-  llmModelName: z.string().optional().or(z.literal('')).transform(v => v === '' ? undefined : v),
+  llmApiBaseUrl: z.string().optional().nullable().or(z.literal('')).transform(v => v === '' ? null : v),
+  llmApiKey: z.string().optional().nullable().or(z.literal('')).transform(v => v === '' ? null : v),
+  llmModelName: z.string().optional().nullable().or(z.literal('')).transform(v => v === '' ? null : v),
   showPrices: z.boolean().optional(),
 }).transform(data => {
   const result: Record<string, unknown> = {};
@@ -190,6 +190,8 @@ export async function registerRoutes(app: Express): Promise<void> {
       res.json(updated);
     } catch (error) {
       if (error instanceof z.ZodError) {
+        console.log("[PATCH /api/doctor/:id] Validation error:", JSON.stringify(error.errors, null, 2));
+        console.log("[PATCH /api/doctor/:id] Request body:", JSON.stringify(req.body, null, 2));
         return res.status(400).json({ error: "Validation failed", details: error.errors });
       }
       throw error;
