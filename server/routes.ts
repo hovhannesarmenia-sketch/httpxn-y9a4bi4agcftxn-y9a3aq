@@ -1315,19 +1315,28 @@ export async function registerRoutes(app: Express): Promise<void> {
         
         if (data === 'lang_arm' || data === 'lang_ru') {
           const selectedLang = data === 'lang_arm' ? 'ARM' : 'RU';
+          
+          // Skip main menu, go directly to calendar
           await storage.upsertTelegramSession(telegramUserId, { 
             language: selectedLang as 'ARM' | 'RU', 
-            step: 'main_menu' 
+            step: 'awaiting_date' 
           });
           
-          const showPrices = doctor.showPrices ?? false;
-          const mainMenuKeyboard = generateMainMenuKeyboard(selectedLang as 'ARM' | 'RU', showPrices);
+          const now = new Date();
+          const availabilityMap = await getAvailabilityMap();
           
-          const welcomeText = selectedLang === 'ARM'
-            ? '\u0538\u0576\u057F\u0580\u0565\u0584 \u0563\u0578\u0580\u056E\u0578\u0572\u0578\u0582\u0569\u0575\u0578\u0582\u0576\u0568:'
-            : 'Выберите действие:';
+          const calendarKeyboard = generateCalendarKeyboard({
+            year: now.getFullYear(),
+            month: now.getMonth(),
+            lang: selectedLang as 'ARM' | 'RU',
+            availabilityMap
+          });
           
-          await sendTelegramMessage(doctor.telegramBotToken, chatId, welcomeText, mainMenuKeyboard);
+          const selectDateText = selectedLang === 'ARM' 
+            ? '\u0538\u0576\u057f\u0580\u0565\u0584 \u0561\u0574\u057d\u0561\u0569\u056b\u057e\u0568:'
+            : 'Выберите дату:';
+          
+          await sendTelegramMessage(doctor.telegramBotToken, chatId, selectDateText, calendarKeyboard);
         }
         
         else if (data === 'start_booking') {
@@ -1602,6 +1611,18 @@ export async function registerRoutes(app: Express): Promise<void> {
               step: 'awaiting_name' 
             });
             
+            // Show price message first (if showPrices is enabled)
+            const showPrices = doctor.showPrices ?? false;
+            if (showPrices && (service.priceMin || service.priceMax)) {
+              const serviceName = lang === 'ARM' ? service.nameArm : service.nameRu;
+              const priceText = formatPrice(service.priceMin, service.priceMax, lang);
+              const selectedText = lang === 'ARM'
+                ? `\u0538\u0576\u057F\u0580\u057E\u0561\u056E: ${serviceName}. \u0533\u056B\u0576\u0568: ${priceText}`
+                : `\u0412\u044B\u0431\u0440\u0430\u043D\u043E: ${serviceName}. \u0426\u0435\u043D\u0430: ${priceText}`;
+              await sendTelegramMessage(doctor.telegramBotToken, chatId, selectedText);
+            }
+            
+            // Then ask for name
             const namePromptText = lang === 'ARM' 
               ? '\u0544\u0578\u0582\u057F\u0584\u0561\u0563\u0580\u0565\u0584 \u0541\u0565\u0580 \u0561\u0576\u0578\u0582\u0576\u0568 \u0587 \u0561\u0566\u0563\u0561\u0576\u0578\u0582\u0576\u0568:'
               : '\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u0432\u0430\u0448\u0435 \u0438\u043C\u044F \u0438 \u0444\u0430\u043C\u0438\u043B\u0438\u044E:';

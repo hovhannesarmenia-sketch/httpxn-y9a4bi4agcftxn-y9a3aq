@@ -287,12 +287,8 @@ export function generateServiceKeyboard(
   
   for (const service of services) {
     const durationText = lang === 'ARM' ? `${service.duration} \u0580\u0578\u057a\u0565` : `${service.duration} мин`;
-    let buttonText = `${service.name} (${durationText})`;
-    
-    if (showPrices && (service.priceMin || service.priceMax)) {
-      const priceText = formatPrice(service.priceMin, service.priceMax, lang);
-      buttonText = `${service.name} - ${priceText}`;
-    }
+    // Always show "Service Name (duration)" format - no price in button
+    const buttonText = `${service.name} (${durationText})`;
     
     keyboard.push([{ 
       text: buttonText, 
