@@ -1129,13 +1129,80 @@ export async function registerRoutes(app: Express): Promise<void> {
             return res.json({ ok: true });
           }
           
-          // For any other state, text input is not allowed - tell user to use buttons
+          
+          // Allow manual phone number entry in awaiting_phone state
           if (session?.step === 'awaiting_phone') {
-            const useButtonText = lang === 'ARM'
-              ? 'Խնդրում ենք օգտագործել ներքևի կոճակները 👇'
-              : '👇 Пожалуйста, используйте кнопки ниже';
-            await sendTelegramMessage(doctor.telegramBotToken, chatId, useButtonText);
-            return res.json({ ok: true });
+            // Validate phone number with regex (accepts formats like 091234567, +374..., etc.)
+            const phoneRegex = /^[\+]?[0-9]{8,15}$/;
+            const cleanedPhone = text.replace(/[\s\-\(\)]/g, ''); // Remove spaces, dashes, parentheses
+            
+            if (phoneRegex.test(cleanedPhone)) {
+              // Valid phone number - proceed with booking
+              const phoneNumber = cleanedPhone;
+              console.log(`[Webhook] Manual phone number entered: ${phoneNumber}`);
+              
+              // Create patient
+              const patient = await storage.createPatient({
+                doctorId: doctor.id,
+                firstName: session.firstName || '',
+                lastName: session.lastName || null,
+                phoneNumber,
+                telegramUserId
+              });
+              
+              // Create appointment
+              const startDateTime = new Date(`${session.selectedDate}T${session.selectedTime}:00`);
+              const serviceDuration = session.durationMinutes || doctor.slotStepMinutes || 15;
+              
+              const appointment = await storage.createAppointment({
+                doctorId: doctor.id,
+                patientId: patient.id,
+                serviceId: session.serviceId || null,
+                startDateTime,
+                durationMinutes: serviceDuration,
+                status: 'PENDING',
+                source: 'TELEGRAM'
+              });
+              
+              // Reset session
+              await storage.upsertTelegramSession(telegramUserId, { step: 'complete' });
+              
+              // Send confirmation to patient
+              const service = session.serviceId ? await storage.getService(session.serviceId) : null;
+              const serviceName = service ? (lang === 'ARM' ? service.nameArm : service.nameRu) : '';
+              
+              const confirmText = lang === 'ARM'
+                ? `✅ \u0541\u0565\u0580 \u0563\u0580\u0561\u0576\u0581\u0578\u0582\u0574\u0568 \u0568\u0576\u0564\u0578\u0582\u0576\u057E\u0565\u0581!\n\n📅 ${session.selectedDate}\n⏰ ${session.selectedTime}\n🏥 ${serviceName}\n\n\u0534\u0578\u0582\u0584 \u057D\u057A\u0561\u057D\u0578\u0582\u0574 \u0565\u0576\u0584 \u0570\u0561\u057D\u057F\u0561\u057F\u0574\u0561\u0576\u0568:`
+                : `✅ Ваша заявка принята!\n\n📅 ${session.selectedDate}\n⏰ ${session.selectedTime}\n🏥 ${serviceName}\n\nОжидайте подтверждения.`;
+              await sendTelegramMessage(doctor.telegramBotToken, chatId, confirmText, { remove_keyboard: true });
+              
+              // Notify doctor
+              const doctorChatId = doctor.telegramChatId;
+              if (doctorChatId) {
+                const firstName = session.firstName || '';
+                const lastName = session.lastName || '';
+                const adminNotification = `🆕 \u0546\u0578\u0580 \u0563\u0580\u0561\u0576\u0581\u0578\u0582\u0574!\n\n👤 \u0540\u056B\u057E\u0561\u0576\u0564\u055D ${firstName} ${lastName}\n📞 \u0540\u0565\u057C\u0561\u056D\u0578\u057D\u055D ${phoneNumber}\n🗓 \u0555\u0580\u055D ${session.selectedDate}\n⏰ \u053A\u0561\u0574\u055D ${session.selectedTime}\n🏥 \u053E\u0561\u057C\u0561\u0575\u0578\u0582\u0569\u0575\u0578\u0582\u0576\u055D ${serviceName || '\u0546\u0577\u057E\u0561\u056E \u0579\u0567'}`;
+                const confirmKeyboard = {
+                  inline_keyboard: [[
+                    { text: '✅ \u0540\u0561\u057D\u057F\u0561\u057F\u0565\u056C', callback_data: `confirm_booking_${appointment.id}` },
+                    { text: '❌ \u0544\u0565\u057C\u056A\u0565\u056C', callback_data: `reject_booking_${appointment.id}` }
+                  ]]
+                };
+                try {
+                  await sendTelegramMessage(doctor.telegramBotToken, doctorChatId, adminNotification, confirmKeyboard);
+                } catch (notifyErr) {
+                  console.error('[Webhook] Failed to notify doctor:', notifyErr);
+                }
+              }
+              return res.json({ ok: true });
+            } else {
+              // Invalid phone number - ask to try again
+              const invalidPhoneText = lang === 'ARM'
+                ? '❌ \u0531\u0576\u057E\u0561\u057E\u0565\u0580 \u0570\u0565\u057C\u0561\u056D\u0578\u057D\u0561\u0570\u0561\u0574\u0561\u0580: \u053D\u0576\u0564\u0580\u0578\u0582\u0574 \u0565\u0576\u0584 \u0576\u0578\u0580\u056B\u0581 \u0583\u0578\u0580\u0571\u0565\u0584 \u056F\u0561\u0574 \u0585\u0563\u057F\u0561\u0563\u0578\u0580\u056E\u0565\u0584 \u056F\u0578\u0573\u0561\u056F\u0568:'
+                : '❌ Неверный формат номера. Введите номер (например: 091234567) или нажмите кнопку ниже:';
+              await sendTelegramMessage(doctor.telegramBotToken, chatId, invalidPhoneText);
+              return res.json({ ok: true });
+            }
           }
           
           if (session?.step && ['awaiting_date', 'awaiting_time', 'awaiting_service'].includes(session.step)) {
